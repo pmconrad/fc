@@ -135,6 +135,12 @@ namespace fc { namespace ip {
     return !( is_private_address() || is_multicast_address() );
   }
 
+  bool address::is_localhost()const
+  {
+    return (_ip >> 24) == 127;
+  }
+
+
   static const unsigned char LOCALHOST[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
   static const unsigned char V4_PREFIX[12] = {0,0,0,0,0,0,0,0,0,0,0xff,0xff};
 
@@ -212,7 +218,7 @@ namespace fc { namespace ip {
   bool operator< ( const endpoint_v6& a, const endpoint_v6& b )
   {
      int d = memcmp( raw_ip6(a._ip).begin(), raw_ip6(b._ip).begin(), raw_ip6(a._ip).size() );
-     return d < 0 || d == 0 && uint32_t(a.port()) < uint32_t(b.port());
+     return d < 0 || ( d == 0 && uint32_t(a.port()) < uint32_t(b.port()) );
   }
 
   uint16_t          endpoint_v6::port()const    { return _port; }
@@ -296,6 +302,140 @@ namespace fc { namespace ip {
       return from_bytes( _ip.begin() + 12 );
   }
 
+
+  any_address::any_address( net_type t ) : type(t) {}
+  any_address::any_address( const address& ip4 ) : type(ipv4), v4(ip4) {}
+  any_address::any_address( const address_v6& ip6 ) : type(ipv6), v6(ip6) {}
+  any_address::any_address( const any_address& addr )
+    : type(addr.get_type()), v4(addr.get_v4()), v6(addr.get_v6()) {}
+  any_address::any_address( const fc::string& s )
+  {
+    if ( s.find(':') == string::npos )
+    {
+        type = ipv4;
+        v4 = s;
+    }
+    else
+    {
+        type = ipv6;
+        v6 = s;
+    }
+  }
+
+  bool operator==( const any_address& a, const any_address& b ) {
+      if ( a.get_type() == ipv4 && b.get_type() == ipv4 )
+      {
+          return a.get_v4() == b.get_v4();
+      }
+      if ( a.get_type() == ipv6 && b.get_type() == ipv6 )
+      {
+          return a.get_v6() == b.get_v6();
+      }
+      return a.get_type() == ipv4 ? b.get_v6().is_mapped_v4()
+                                    && b.get_v6().get_mapped_v4() == a.get_v4()
+                                  : a.get_v6().is_mapped_v4()
+                                    && a.get_v6().get_mapped_v4() == b.get_v4();
+  }
+  bool operator!=( const any_address& a, const any_address& b ) {
+    return !(a == b);
+  }
+
+  any_address& any_address::operator=( const fc::string& s )
+  {
+    if ( s.find(':') == string::npos )
+    {
+        type = ipv4;
+        v4 = s;
+    }
+    else
+    {
+        type = ipv6;
+        v6 = s;
+    }
+    return *this;
+  }
+
+  any_address::operator fc::string()const
+  {
+      return type == ipv4 ? fc::string(v4) : fc::string(v6);
+  }
+
+  net_type any_address::get_type() const { return type; }
+  const address& any_address::get_v4() const { return v4; }
+  const address_v6& any_address::get_v6() const { return v6; }
+
+
+  any_endpoint::any_endpoint( net_type t )
+  :_port(0),_ip(t){}
+  any_endpoint::any_endpoint(const address& a, uint16_t p)
+  :_port(p),_ip(a){}
+  any_endpoint::any_endpoint(const address_v6& a, uint16_t p)
+  :_port(p),_ip(a){}
+  any_endpoint::any_endpoint(const any_address& a, uint16_t p)
+  :_port(p),_ip(a){}
+
+  bool operator==( const any_endpoint& a, const any_endpoint& b ) {
+    return a._port == b._port && a._ip == b._ip;
+  }
+  bool operator!=( const any_endpoint& a, const any_endpoint& b ) {
+    return a._port != b._port || a._ip != b._ip;
+  }
+
+  bool operator< ( const any_endpoint& a, const any_endpoint& b )
+  {
+     //FIXME
+  }
+
+  uint16_t           any_endpoint::port()const        { return _port; }
+  const any_address& any_endpoint::get_address()const { return _ip;   }
+
+  any_endpoint any_endpoint::from_string( const string& endpoint_string )
+  {
+    try
+    {
+      if ( endpoint_string.at(0) == '[' )
+      {
+          endpoint_v6 ep6 = endpoint_v6::from_string( endpoint_string );
+          any_endpoint ep( ep6.get_address(), ep6.port() );
+          return ep;
+      }
+      endpoint ep4 = endpoint::from_string( endpoint_string );
+      any_endpoint ep( ep4.get_address(), ep4.port() );
+      return ep;
+    }
+    FC_RETHROW_EXCEPTIONS(warn, "error converting string to IP endpoint")
+    FC_THROW_EXCEPTION(parse_error_exception, "error converting string to IP endpoint");
+  }
+
+  any_endpoint::operator string()const
+  {
+    try
+    {
+      return (_ip.get_type() == ipv4 ? string(_ip) : '[' + string(_ip) + ']')
+             + ':' + fc::string(boost::lexical_cast<std::string>(_port).c_str());
+    }
+    FC_RETHROW_EXCEPTIONS(warn, "error converting IP endpoint to string")
+  }
+
+  bool any_address::is_private_address()const
+  {
+      return type == ipv4 ? v4.is_private_address() : v6.is_private_address();
+  }
+
+  bool any_address::is_multicast_address()const
+  {
+      return type == ipv4 ? v4.is_multicast_address() : v6.is_multicast_address();
+  }
+
+  bool any_address::is_public_address()const
+  {
+      return type == ipv4 ? v4.is_public_address() : v6.is_public_address();
+  }
+
+  bool any_address::is_localhost()const
+  {
+      return type == ipv4 ? v4.is_localhost() : v6.is_localhost();
+  }
 }  // namespace ip
 
   void to_variant( const ip::endpoint& var,  variant& vo )
@@ -334,4 +474,21 @@ namespace fc { namespace ip {
     vo = ip::address_v6(var.as_string());
   }
 
+  void to_variant( const ip::any_endpoint& var, variant& vo )
+  {
+      vo = fc::string(var);
+  }
+  void from_variant( const variant& var, ip::any_endpoint& vo )
+  {
+     vo = ip::any_endpoint::from_string(var.as_string());
+  }
+
+  void to_variant( const ip::any_address& var, variant& vo )
+  {
+    vo = fc::string(var);
+  }
+  void from_variant( const variant& var, ip::any_address& vo )
+  {
+    vo = ip::any_address(var.as_string());
+  }
 } 

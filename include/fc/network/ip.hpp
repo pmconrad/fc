@@ -10,6 +10,10 @@
 namespace fc {
 
   namespace ip {
+      enum net_type {
+          ipv4, ipv6
+      };
+
     class address {
       public:
         address( uint32_t _ip = 0 );
@@ -39,6 +43,9 @@ namespace fc {
 
         /** !private & !multicast */
         bool is_public_address()const;
+
+        /** 127.0.0.0/8 */
+        bool is_localhost()const;
       private:
         uint32_t _ip;
     };
@@ -145,6 +152,64 @@ namespace fc {
         address_v6  _ip;
     };
 
+    class any_address {
+      public:
+        any_address( net_type t = ipv4 );
+        any_address( const address& a );
+        any_address( const address_v6& a );
+        any_address( const any_address& a );
+        any_address( const fc::string& s );
+
+        any_address& operator=( const fc::string& s );
+        operator fc::string()const;
+        net_type get_type()const;
+        const address& get_v4()const;
+        const address_v6& get_v6()const;
+
+        friend bool operator==( const any_address& a, const any_address& b );
+        friend bool operator!=( const any_address& a, const any_address& b );
+
+        bool is_private_address()const;
+        bool is_multicast_address()const;
+        bool is_public_address()const;
+        bool is_localhost()const;
+      private:
+        net_type type;
+        address v4;
+        address_v6 v6;
+    };
+
+    class any_endpoint {
+      public:
+        any_endpoint( net_type t = ipv4 );
+        any_endpoint( const address& i, uint16_t p = 0);
+        any_endpoint( const address_v6& i, uint16_t p = 0);
+        any_endpoint( const any_address& i, uint16_t p = 0);
+
+        static any_endpoint from_string( const string& s );
+        operator string()const;
+
+        void           set_port(uint16_t p ) { _port = p; }
+        uint16_t       port()const;
+
+        const any_address& get_address()const;
+
+        friend bool operator==( const any_endpoint& a, const any_endpoint& b );
+        friend bool operator!=( const any_endpoint& a, const any_endpoint& b );
+        friend bool operator< ( const any_endpoint& a, const any_endpoint& b );
+
+      private:
+        /**
+         *  The compiler pads endpoint to a full 8 bytes, so while
+         *  a port number is limited in range to 16 bits, we specify
+         *  a full 32 bits so that memcmp can be used with sizeof(),
+         *  otherwise 2 bytes will be 'random' and you do not know
+         *  where they are stored.
+         */
+        uint32_t _port;
+        any_address _ip;
+    };
+
   }
   class variant;
   void to_variant( const ip::endpoint& var,  variant& vo );
@@ -158,6 +223,12 @@ namespace fc {
 
   void to_variant( const ip::address_v6& var,  variant& vo );
   void from_variant( const variant& var,  ip::address_v6& vo );
+
+  void to_variant( const ip::any_endpoint& var,  variant& vo );
+  void from_variant( const variant& var,  ip::any_endpoint& vo );
+
+  void to_variant( const ip::any_address& var,  variant& vo );
+  void from_variant( const variant& var,  ip::any_address& vo );
 
   namespace raw 
   {
@@ -218,12 +289,64 @@ namespace fc {
        fc::raw::unpack( s, p );
        v = ip::endpoint_v6(a,p);
     }
+
+    template<typename Stream>
+    inline void pack( Stream& s, const ip::any_address& v )
+    {
+       fc::raw::pack( s, v.get_type() );
+       switch ( v.get_type() )
+       {
+           case fc::ip::net_type::ipv4:
+               fc::raw::pack( s, v.get_v4() );
+               break;
+           case fc::ip::net_type::ipv6:
+               fc::raw::pack( s, v.get_v6() );
+               break;
+       }
+    }
+    template<typename Stream>
+    inline void unpack( Stream& s, ip::any_address& v )
+    {
+       fc::ip::net_type type;
+       fc::raw::unpack( s, type );
+       switch ( v.get_type() )
+       {
+           case fc::ip::net_type::ipv4:
+               fc::ip::address addr4;
+               fc::raw::unpack( s, addr4 );
+               v = fc::ip::any_address( addr4 );
+               break;
+           case fc::ip::net_type::ipv6:
+               fc::ip::address_v6 addr6;
+               fc::raw::unpack( s, addr6 );
+               v = fc::ip::any_address( addr6 );
+               break;
+       }
+    }
+
+    template<typename Stream>
+    inline void pack( Stream& s, const ip::any_endpoint& v )
+    {
+       fc::raw::pack( s, v.get_address() );
+       fc::raw::pack( s, v.port() );
+    }
+    template<typename Stream>
+    inline void unpack( Stream& s, ip::any_endpoint& v )
+    {
+       ip::any_address a;
+       uint16_t p;
+       fc::raw::unpack( s, a );
+       fc::raw::unpack( s, p );
+       v = ip::any_endpoint(a,p);
+    }
   }
 } // namespace fc
 FC_REFLECT_TYPENAME( fc::ip::address ) 
 FC_REFLECT_TYPENAME( fc::ip::endpoint ) 
 FC_REFLECT_TYPENAME( fc::ip::address_v6 )
 FC_REFLECT_TYPENAME( fc::ip::endpoint_v6 )
+FC_REFLECT_TYPENAME( fc::ip::any_address )
+FC_REFLECT_TYPENAME( fc::ip::any_endpoint )
 namespace std
 {
     template<>
@@ -238,6 +361,14 @@ namespace std
     struct hash<fc::ip::endpoint_v6>
     {
        size_t operator()( const fc::ip::endpoint_v6& e )const
+       {
+           return fc::city_hash_size_t( (char*)&e, sizeof(e) );
+       }
+    };
+    template<>
+    struct hash<fc::ip::any_endpoint>
+    {
+       size_t operator()( const fc::ip::any_endpoint& e )const
        {
            return fc::city_hash_size_t( (char*)&e, sizeof(e) );
        }

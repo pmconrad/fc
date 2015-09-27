@@ -12,10 +12,12 @@ BOOST_AUTO_TEST_CASE( ip4_test )
     BOOST_CHECK_EQUAL( 0, uint32_t(any) );
     BOOST_CHECK( !any.is_private_address() );
     BOOST_CHECK( !any.is_multicast_address() );
+    BOOST_CHECK( !any.is_localhost() );
 
     fc::ip::address localhost( "127.0.0.1" );
     uint32_t local_ip = uint32_t(localhost);
     BOOST_CHECK_EQUAL( ((127 << 24) + 1), local_ip );
+    BOOST_CHECK( localhost.is_localhost() );
 
     fc::ip::address other( local_ip );
     BOOST_CHECK( localhost == other );
@@ -24,6 +26,7 @@ BOOST_AUTO_TEST_CASE( ip4_test )
     BOOST_CHECK( localhost != other );
     BOOST_CHECK( other.is_private_address() );
     BOOST_CHECK( !other.is_public_address() );
+    BOOST_CHECK( !other.is_localhost() );
     BOOST_CHECK_EQUAL( "10.1.2.3", fc::string(other) );
 
 
@@ -109,6 +112,85 @@ BOOST_AUTO_TEST_CASE( ip6_test )
     BOOST_CHECK( here != there );
     BOOST_CHECK( here < there );
     BOOST_CHECK( localhost2 == here.get_address() );
+}
+
+BOOST_AUTO_TEST_CASE( any_test )
+{
+    fc::ip::any_address local4( "127.0.0.1" );
+    BOOST_CHECK( fc::ip::net_type::ipv4 == local4.get_type() );
+    BOOST_CHECK( local4.is_localhost() );
+    BOOST_CHECK( !local4.is_multicast_address() );
+    BOOST_CHECK_EQUAL( "127.0.0.1", fc::string(local4) );
+
+    fc::ip::any_address local6( "::1" );
+    BOOST_CHECK( fc::ip::net_type::ipv6 == local6.get_type() );
+    BOOST_CHECK( local6.is_localhost() );
+    BOOST_CHECK( !local6.is_public_address() );
+    BOOST_CHECK( !local6.is_multicast_address() );
+    BOOST_CHECK( local4 != local6 );
+    BOOST_CHECK_EQUAL( "::1", fc::string(local6) );
+
+    fc::ip::address other4( "127.0.0.1" );
+    fc::ip::any_address other( other4 );
+    BOOST_CHECK( fc::ip::net_type::ipv4 == other.get_type() );
+    BOOST_CHECK( local4 == other );
+
+    other = fc::ip::any_address( fc::ip::address_v6( other4 ) );
+    BOOST_CHECK( fc::ip::net_type::ipv6 == other.get_type() );
+    BOOST_CHECK( local4 == other );
+
+    fc::ip::address_v6 other6( "::1" );
+    other = fc::ip::any_address( other6 );
+    BOOST_CHECK( fc::ip::net_type::ipv6 == other.get_type() );
+    BOOST_CHECK( local6 == other );
+
+    BOOST_CHECK_EQUAL( other4, local4.get_v4() );
+    BOOST_CHECK( other6 == local6.get_v6() );
+
+    other = "::ffff:127.0.0.1";
+    BOOST_CHECK( local4 == other );
+    BOOST_CHECK( fc::ip::net_type::ipv6 == other.get_type() );
+
+    other = "::ffff:172.16.17.18";
+    BOOST_CHECK( !other.is_localhost() );
+    BOOST_CHECK( other.is_private_address() );
+    BOOST_CHECK( !other.is_public_address() );
+    BOOST_CHECK( !other.is_multicast_address() );
+
+    other = "2002:a9fe:1112::abcd";
+    BOOST_CHECK( !other.is_localhost() );
+    BOOST_CHECK( other.is_private_address() );
+    BOOST_CHECK( !other.is_public_address() );
+    BOOST_CHECK( !other.is_multicast_address() );
+
+    other = "169.254.17.18";
+    BOOST_CHECK( fc::ip::net_type::ipv4 == other.get_type() );
+    BOOST_CHECK( !other.is_localhost() );
+    BOOST_CHECK( other.is_private_address() );
+    BOOST_CHECK( !other.is_public_address() );
+    BOOST_CHECK( !other.is_multicast_address() );
+
+
+    fc::ip::any_endpoint listen4;
+    fc::ip::any_endpoint listen6( fc::ip::net_type::ipv6 );
+    BOOST_CHECK_EQUAL( "0.0.0.0:0", fc::string(listen4) );
+    BOOST_CHECK_EQUAL( "[::]:0", fc::string(listen6) );
+
+    fc::ip::any_endpoint listen4b( other4, 42 );
+    BOOST_CHECK_EQUAL( 42, listen4b.port() );
+
+    fc::ip::any_endpoint listen6b( local6, 43 );
+    BOOST_CHECK_EQUAL( 43, listen6b.port() );
+    listen6b.set_port( 44 );
+    BOOST_CHECK_EQUAL( 44, listen6b.port() );
+    BOOST_CHECK_EQUAL( "[::1]:44", fc::string(listen6b) );
+
+    listen4 = fc::ip::any_endpoint::from_string( "169.254.17.18:19" );
+    BOOST_CHECK( fc::ip::any_endpoint( other, 19 ) == listen4 );
+    BOOST_CHECK( fc::ip::any_endpoint( other, 20 ) != listen4 );
+    BOOST_CHECK( fc::ip::any_endpoint( other, listen4b.port() ) != listen4b );
+    BOOST_CHECK( listen4 < fc::ip::any_endpoint( other, 20 ) );
+    BOOST_CHECK( fc::ip::any_endpoint( other, listen4b.port() ) < listen4b );
 }
 
 BOOST_AUTO_TEST_SUITE_END()
