@@ -13,7 +13,7 @@
 namespace fc {
   class value;
   class exception;
-  namespace ip { class address; }
+  namespace ip { class address; class address_v6; }
 
   template<typename T> class get_typename{};
   template<> struct get_typename<int32_t>  { static const char* name()  { return "int32_t";  } };

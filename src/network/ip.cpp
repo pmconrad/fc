@@ -135,6 +135,167 @@ namespace fc { namespace ip {
     return !( is_private_address() || is_multicast_address() );
   }
 
+  static const unsigned char LOCALHOST[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
+  static const unsigned char V4_PREFIX[12] = {0,0,0,0,0,0,0,0,0,0,0xff,0xff};
+
+  address_v6::address_v6() {
+      memset( &_ip, 0, sizeof( _ip ) );
+  }
+
+  address_v6::address_v6( const raw_ip6& ip )
+  :_ip(ip){}
+
+  address_v6::address_v6( const address& ip4 )
+  {
+      memcpy( _ip.begin(), V4_PREFIX, sizeof(V4_PREFIX) );
+      uint32_t v4 = uint32_t(ip4);
+      _ip.begin()[12] = v4 >> 24;
+      _ip.begin()[13] = (v4 >> 16) & 0xff;
+      _ip.begin()[14] = (v4 >> 8) & 0xff;
+      _ip.begin()[15] = v4 & 0xff;
+  }
+
+  address_v6::address_v6( const fc::string& s )
+  {
+    try
+    {
+      memcpy( _ip.begin(), boost::asio::ip::address_v6::from_string(s.c_str()).to_bytes().data(), _ip.size() );
+    }
+    FC_RETHROW_EXCEPTIONS(error, "Error parsing IP address ${address}", ("address", s))
+  }
+
+  bool operator==( const address_v6& a, const address_v6& b ) {
+    return memcmp( raw_ip6(a).begin(), raw_ip6(b).begin(), raw_ip6(a).size() ) == 0;
+  }
+  bool operator!=( const address_v6& a, const address_v6& b ) {
+    return memcmp( raw_ip6(a).begin(), raw_ip6(b).begin(), raw_ip6(a).size() ) != 0;
+  }
+
+  address_v6& address_v6::operator=( const fc::string& s )
+  {
+    try
+    {
+      memcpy( _ip.begin(), boost::asio::ip::address_v6::from_string(s.c_str()).to_bytes().data(), _ip.size() );
+    }
+    FC_RETHROW_EXCEPTIONS(error, "Error parsing IP address ${address}", ("address", s))
+    return *this;
+  }
+
+  address_v6::operator fc::string()const
+  {
+    try
+    {
+        boost::asio::ip::address_v6::bytes_type bytes;
+        memcpy( bytes.data(), _ip.begin(), bytes.size() );
+        boost::asio::ip::address_v6 ba( bytes );
+        return ba.to_string();
+    }
+    FC_RETHROW_EXCEPTIONS(error, "Error parsing IP address to string")
+  }
+  address_v6::operator raw_ip6()const {
+    return _ip;
+  }
+
+
+  endpoint_v6::endpoint_v6()
+  :_port(0){ }
+  endpoint_v6::endpoint_v6(const address_v6& a, uint16_t p)
+  :_port(p),_ip(a){}
+
+  bool operator==( const endpoint_v6& a, const endpoint_v6& b ) {
+    return a._port == b._port  && a._ip == b._ip;
+  }
+  bool operator!=( const endpoint_v6& a, const endpoint_v6& b ) {
+    return a._port != b._port || a._ip != b._ip;
+  }
+
+  bool operator< ( const endpoint_v6& a, const endpoint_v6& b )
+  {
+     int d = memcmp( raw_ip6(a._ip).begin(), raw_ip6(b._ip).begin(), raw_ip6(a._ip).size() );
+     return d < 0 || d == 0 && uint32_t(a.port()) < uint32_t(b.port());
+  }
+
+  uint16_t          endpoint_v6::port()const    { return _port; }
+  const address_v6& endpoint_v6::get_address()const { return _ip;   }
+
+  endpoint_v6 endpoint_v6::from_string( const string& endpoint_string )
+  {
+    try
+    {
+      if ( endpoint_string.at(0) == '[' )
+      {
+        auto pos = endpoint_string.find("]:");
+        if ( pos != string::npos )
+        {
+          endpoint_v6 ep;
+          ep._ip = endpoint_string.substr( 1, pos - 1 );
+          ep._port = boost::lexical_cast<uint16_t>( endpoint_string.substr( pos+2, endpoint_string.size() ) );
+          return ep;
+        }
+      }
+    }
+    FC_RETHROW_EXCEPTIONS(warn, "error converting string to IP endpoint")
+    FC_THROW_EXCEPTION(parse_error_exception, "error converting string to IP endpoint");
+  }
+
+  endpoint_v6::operator string()const
+  {
+    try
+    {
+      return '[' + string(_ip) + "]:" + fc::string(boost::lexical_cast<std::string>(_port).c_str());
+    }
+    FC_RETHROW_EXCEPTIONS(warn, "error converting IP endpoint to string")
+  }
+
+  static address from_bytes( const unsigned char *bytes )
+  {
+      address v4(   (bytes[0] << 24)
+                  | (bytes[1] << 16)
+                  | (bytes[2] << 8)
+                  |  bytes[3] );
+      return v4;
+  }
+
+  bool address_v6::is_private_address()const
+  {
+    if ( *_ip.begin() == 0x20 && _ip.begin()[1] == 2 ) {
+        // 6to4
+        return from_bytes( _ip.begin() + 2 ).is_private_address();
+    }
+    return is_localhost()
+           || (is_mapped_v4() && get_mapped_v4().is_private_address())
+           || (*_ip.begin() & 0xfe) == 0xfc
+           || (*_ip.begin() == 0xfe
+               && (_ip.begin()[1] & 0x80) == 0x80);
+  }
+
+  bool address_v6::is_multicast_address()const
+  {
+    return *_ip.begin() == 0xff;
+  }
+
+  bool address_v6::is_public_address()const
+  {
+    return !is_private_address() && (*_ip.begin() & 0xe0) == 0x20;
+  }
+
+  bool address_v6::is_localhost()const
+  {
+      return memcmp( _ip.begin(), LOCALHOST, _ip.size() ) == 0
+             || (is_mapped_v4() && (uint32_t(get_mapped_v4()) >> 24) == 127);
+  }
+
+  bool address_v6::is_mapped_v4()const
+  {
+      return memcmp( _ip.begin(), V4_PREFIX, sizeof(V4_PREFIX) ) == 0;
+  }
+
+  address address_v6::get_mapped_v4()const
+  {
+      FC_ASSERT( is_mapped_v4() );
+      return from_bytes( _ip.begin() + 12 );
+  }
+
 }  // namespace ip
 
   void to_variant( const ip::endpoint& var,  variant& vo )
@@ -153,6 +314,24 @@ namespace fc { namespace ip {
   void from_variant( const variant& var,  ip::address& vo )
   {
     vo = ip::address(var.as_string());
+  }
+
+  void to_variant( const ip::endpoint_v6& var, variant& vo )
+  {
+      vo = fc::string(var);
+  }
+  void from_variant( const variant& var, ip::endpoint_v6& vo )
+  {
+     vo = ip::endpoint_v6::from_string(var.as_string());
+  }
+
+  void to_variant( const ip::address_v6& var, variant& vo )
+  {
+    vo = fc::string(var);
+  }
+  void from_variant( const variant& var, ip::address_v6& vo )
+  {
+    vo = ip::address_v6(var.as_string());
   }
 
 } 

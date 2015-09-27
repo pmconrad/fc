@@ -369,6 +369,7 @@ add_executable( all_tests tests/all_tests.cpp
                           tests/crypto/dh_test.cpp
                           tests/crypto/rand_test.cpp
                           tests/crypto/sha_tests.cpp
+                          tests/network/ip_test.cpp
                           tests/network/ntp_test.cpp
                           tests/network/http/websocket_test.cpp
                           tests/thread/task_cancel.cpp
