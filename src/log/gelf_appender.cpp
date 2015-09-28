@@ -24,7 +24,7 @@ namespace fc
   {
   public:
     config                     cfg;
-    optional<ip::endpoint>     gelf_endpoint;
+    optional<ip::any_endpoint> gelf_endpoint;
     udp_socket                 gelf_socket;
 
     impl(const config& c) : 
@@ -45,7 +45,7 @@ namespace fc
       try
       {
         // if it's a numeric address:port, this will parse it
-        my->gelf_endpoint = ip::endpoint::from_string(my->cfg.endpoint);
+        my->gelf_endpoint = ip::any_endpoint::from_string(my->cfg.endpoint);
       }
       catch (...)
       {
@@ -60,7 +60,7 @@ namespace fc
           uint16_t port = boost::lexical_cast<uint16_t>(my->cfg.endpoint.substr(colon_pos + 1, my->cfg.endpoint.size()));
 
           string hostname = my->cfg.endpoint.substr( 0, colon_pos );
-          std::vector<ip::endpoint> endpoints = resolve(hostname, port);
+          std::vector<ip::any_endpoint> endpoints = resolve_46(hostname, port);
           if (endpoints.empty())
               FC_THROW_EXCEPTION(unknown_host_exception, "The host name can not be resolved: ${hostname}", 
                                  ("hostname", hostname));
