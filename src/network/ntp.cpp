@@ -75,7 +75,7 @@ namespace fc
           try 
           {
             //wlog( "resolving... ${r}", ("r", item) );
-            auto eps = resolve( item.first, item.second );
+            auto eps = resolve_46( item.first, item.second );
             for( auto ep : eps )
             {
              // wlog( "sending request to ${ep}", ("ep",ep) );
@@ -140,7 +140,7 @@ namespace fc
 
             while( !_read_loop_done.canceled() )
             {
-              fc::ip::endpoint from;
+              fc::ip::any_endpoint from;
               try
               {
                 _sock.receive_from( receive_buffer, receive_buffer_size, from );

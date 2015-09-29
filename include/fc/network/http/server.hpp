@@ -46,7 +46,9 @@ namespace fc { namespace http {
       };
 
       void listen( const fc::ip::endpoint& p );
+      void listen( const fc::ip::any_endpoint& p );
       fc::ip::endpoint get_local_endpoint() const;
+      fc::ip::any_endpoint get_local_endpoint_46() const;
 
       /**
        *  Set the callback to be called for every http request made.

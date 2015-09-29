@@ -1,4 +1,5 @@
 #pragma once
+#include <fc/network/ip.hpp>
 #include <fc/utility.hpp>
 #include <fc/fwd.hpp>
 #include <fc/io/iostream.hpp>
@@ -6,7 +7,6 @@
 #include <fc/noncopyable.hpp>
 
 namespace fc {
-   namespace ip { class endpoint; }
 
    class udt_socket : public virtual iostream, public noncopyable
    {
@@ -15,10 +15,14 @@ namespace fc {
        ~udt_socket();
 
        void bind( const fc::ip::endpoint& local_endpoint );
+       void bind( const fc::ip::any_endpoint& local_endpoint );
        void connect_to( const fc::ip::endpoint& remote_endpoint );
+       void connect_to( const fc::ip::any_endpoint& remote_endpoint );
 
        fc::ip::endpoint remote_endpoint() const;
+       fc::ip::any_endpoint remote_endpoint_46() const;
        fc::ip::endpoint local_endpoint() const;
+       fc::ip::any_endpoint local_endpoint_46() const;
 
        using istream::get;
        void get( char& c )
@@ -61,7 +65,9 @@ namespace fc {
         void             accept( udt_socket& s );
 
         void             listen( const fc::ip::endpoint& ep );
+        void             listen( const fc::ip::any_endpoint& ep );
         fc::ip::endpoint local_endpoint() const;
+        fc::ip::any_endpoint local_endpoint_46() const;
 
       private:
         int _udt_socket_id;

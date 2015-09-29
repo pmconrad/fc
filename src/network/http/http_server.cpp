@@ -49,7 +49,7 @@ namespace fc { namespace http {
     public:
       impl(){}
 
-      impl(const fc::ip::endpoint& p ) 
+      impl(const fc::ip::any_endpoint& p )
       {
         tcp_serv.set_reuse_address();
         tcp_serv.listen(p);
@@ -134,7 +134,7 @@ namespace fc { namespace http {
 
 
   server::server():my( new impl() ){}
-  server::server( uint16_t port ) :my( new impl(fc::ip::endpoint( fc::ip::address(),port)) ){}
+  server::server( uint16_t port ) :my( new impl(fc::ip::any_endpoint( fc::ip::address_v6(),port)) ){}
   server::server( server&& s ):my(fc::move(s.my)){}
 
   server& server::operator=(server&& s)      { fc_swap(my,s.my); return *this; }
@@ -143,12 +143,17 @@ namespace fc { namespace http {
 
   void server::listen( const fc::ip::endpoint& p ) 
   {
-    my.reset( new impl(p) );
+    my.reset( new impl( fc::ip::any_endpoint( p.get_address(), p.port() ) ) );
   }
 
   fc::ip::endpoint server::get_local_endpoint() const
   {
     return my->tcp_serv.get_local_endpoint();
+  }
+
+  fc::ip::any_endpoint server::get_local_endpoint_46() const
+  {
+    return my->tcp_serv.get_local_endpoint_46();
   }
 
 

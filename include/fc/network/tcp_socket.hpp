@@ -1,12 +1,11 @@
 #pragma once
+#include <fc/network/ip.hpp>
 #include <fc/utility.hpp>
 #include <fc/fwd.hpp>
 #include <fc/io/iostream.hpp>
 #include <fc/time.hpp>
 
 namespace fc {
-  namespace ip { class endpoint; }
-
   class tcp_socket_io_hooks;
 
   class tcp_socket : public virtual iostream
@@ -16,12 +15,16 @@ namespace fc {
       ~tcp_socket();
 
       void     connect_to( const fc::ip::endpoint& remote_endpoint );
+      void     connect_to( const fc::ip::any_endpoint& remote_endpoint );
       void     bind( const fc::ip::endpoint& local_endpoint );
+      void     bind( const fc::ip::any_endpoint& local_endpoint );
       void     enable_keep_alives(const fc::microseconds& interval);
       void set_io_hooks(tcp_socket_io_hooks* new_hooks);
       void set_reuse_address(bool enable = true); // set SO_REUSEADDR
       fc::ip::endpoint remote_endpoint() const;
+      fc::ip::any_endpoint remote_endpoint_46() const;
       fc::ip::endpoint local_endpoint() const;
+      fc::ip::any_endpoint local_endpoint_46() const;
 
       using istream::get;
       void get( char& c )
@@ -71,7 +74,9 @@ namespace fc {
       void     set_reuse_address(bool enable = true); // set SO_REUSEADDR, call before listen
       void     listen( uint16_t port );
       void     listen( const fc::ip::endpoint& ep );
+      void     listen( const fc::ip::any_endpoint& ep );
       fc::ip::endpoint get_local_endpoint() const;
+      fc::ip::any_endpoint get_local_endpoint_46() const;
       uint16_t get_port()const;
     private:
       // non copyable

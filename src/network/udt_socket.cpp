@@ -2,7 +2,6 @@
 #include <fc/thread/thread.hpp>
 #include <fc/thread/mutex.hpp>
 #include <fc/thread/unique_lock.hpp>
-#include <fc/network/ip.hpp>
 #include <udt.h>
 
 #ifndef WIN32
@@ -304,7 +303,7 @@ namespace fc {
    
    void udt_socket::open()
    {
-      _udt_socket_id = UDT::socket(AF_INET, SOCK_STREAM, 0);
+      _udt_socket_id = UDT::socket(AF_INET6, SOCK_STREAM, 0);
       if( _udt_socket_id == UDT::INVALID_SOCK )
          check_udt_errors();
    }
@@ -322,7 +321,7 @@ namespace fc {
   udt_server::udt_server()
   :_udt_socket_id( UDT::INVALID_SOCK )
   {
-      _udt_socket_id = UDT::socket(AF_INET, SOCK_STREAM, 0);
+      _udt_socket_id = UDT::socket(AF_INET6, SOCK_STREAM, 0);
       if( _udt_socket_id == UDT::INVALID_SOCK )
          check_udt_errors();
 
@@ -379,11 +378,10 @@ namespace fc {
 
   void udt_server::listen( const ip::endpoint& ep )
   { try {
-      sockaddr_in my_addr;
-      my_addr.sin_family = AF_INET;
-      my_addr.sin_port = htons(ep.port());
-      my_addr.sin_addr.s_addr = INADDR_ANY;
-      memset(&(my_addr.sin_zero), '\0', 8);
+      sockaddr_in6 my_addr;
+      my_addr.sin6_family = AF_INET6;
+      my_addr.sin6_port = htons(ep.port());
+      memset(&my_addr.sin6_addr, 0, sizeof(my_addr.sin6_addr));
       
       if( UDT::ERROR == UDT::bind(_udt_socket_id, (sockaddr*)&my_addr, sizeof(my_addr)) )
         check_udt_errors();
@@ -393,13 +391,29 @@ namespace fc {
   } FC_CAPTURE_AND_RETHROW( (ep) ) }
 
   fc::ip::endpoint udt_server::local_endpoint() const
+  {
+    fc::ip::any_endpoint ep = local_endpoint_46();
+    if ( ep.get_address().get_type() == ip::net_type::ipv4)
+    {
+      return fc::ip::endpoint( ep.get_address().get_v4(), ep.port() );
+    }
+    if ( ep.get_address().get_type() == ip::net_type::ipv6
+         && ep.get_address().get_v6().is_mapped_v4() )
+    {
+      return fc::ip::endpoint( ep.get_address().get_v6().get_mapped_v4(), ep.port() );
+    }
+    FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported address type");
+  }
+  fc::ip::any_endpoint udt_server::local_endpoint_46() const
   { try {
-     sockaddr_in sock_addr;
+     sockaddr_in6 sock_addr;
      int addr_size = sizeof(sock_addr);
      int error_code = UDT::getsockname( _udt_socket_id, (struct sockaddr*)&sock_addr, &addr_size );
      if( error_code == UDT::ERROR )
          check_udt_errors();
-     return ip::endpoint( ip::address( htonl( sock_addr.sin_addr.s_addr ) ), htons(sock_addr.sin_port) );
+     fc::ip::raw_ip6 raw;
+     memcpy( raw.begin(), &sock_addr.sin6_addr, raw.size() );
+     return ip::any_endpoint( ip::address_v6( raw ), htons(sock_addr.sin6_port) );
   } FC_CAPTURE_AND_RETHROW() }
 
 } 

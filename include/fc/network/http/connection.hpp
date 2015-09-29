@@ -1,12 +1,10 @@
 #pragma once
+#include <fc/network/tcp_socket.hpp>
 #include <fc/vector.hpp>
 #include <fc/string.hpp>
 #include <memory>
 
 namespace fc { 
-  namespace ip { class endpoint; }
-  class tcp_socket;
-
   namespace http {
 
      struct header 
@@ -60,6 +58,7 @@ namespace fc {
          ~connection();
          // used for clients
          void         connect_to( const fc::ip::endpoint& ep );
+         void         connect_to( const fc::ip::any_endpoint& ep );
          http::reply  request( const fc::string& method, const fc::string& url, const fc::string& body = std::string(), const headers& = headers());
      
          // used for servers

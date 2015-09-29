@@ -555,6 +555,21 @@ namespace fc { namespace http {
    {
       my->_server.listen( boost::asio::ip::tcp::endpoint( boost::asio::ip::address_v4(uint32_t(ep.get_address())),ep.port()) );
    }
+   void websocket_server::listen( const fc::ip::any_endpoint& ep )
+   {
+      if ( ep.get_address().get_type() == fc::ip::net_type::ipv4 )
+      {
+        my->_server.listen( boost::asio::ip::tcp::endpoint( boost::asio::ip::address_v4(uint32_t(ep.get_address().get_v4())), ep.port()) );
+      }
+      else if ( ep.get_address().get_type() == fc::ip::net_type::ipv6 )
+      {
+        my->_server.listen( boost::asio::ip::tcp::endpoint( boost::asio::ip::address_v6::from_string(fc::string(ep.get_address().get_v6())), ep.port()) );
+      }
+      else
+      {
+        FC_THROW_EXCEPTION(parse_error_exception, "unsupported endpoint type");
+      }
+   }
 
    void websocket_server::start_accept() {
       my->_server.start_accept();
@@ -578,6 +593,21 @@ namespace fc { namespace http {
    void websocket_tls_server::listen( const fc::ip::endpoint& ep )
    {
       my->_server.listen( boost::asio::ip::tcp::endpoint( boost::asio::ip::address_v4(uint32_t(ep.get_address())),ep.port()) );
+   }
+   void websocket_tls_server::listen( const fc::ip::any_endpoint& ep )
+   {
+      if ( ep.get_address().get_type() == fc::ip::net_type::ipv4 )
+      {
+        my->_server.listen( boost::asio::ip::tcp::endpoint( boost::asio::ip::address_v4(uint32_t(ep.get_address().get_v4())), ep.port()) );
+      }
+      else if ( ep.get_address().get_type() == fc::ip::net_type::ipv6 )
+      {
+        my->_server.listen( boost::asio::ip::tcp::endpoint( boost::asio::ip::address_v6::from_string(fc::string(ep.get_address().get_v6())), ep.port()) );
+      }
+      else
+      {
+        FC_THROW_EXCEPTION(parse_error_exception, "unsupported endpoint type");
+      }
    }
 
    void websocket_tls_server::start_accept() {

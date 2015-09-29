@@ -14,17 +14,21 @@ namespace fc {
       }
 
       boost::asio::ip::udp::socket _sock;
-      fc::ip::net_type type = fc::ip::net_type::ipv6;
   };
 
   static boost::asio::ip::udp::endpoint to_asio_ep( const fc::ip::any_endpoint& e ) {
+    fc::ip::address_v6 addr;
     switch (e.get_address().get_type()) {
         case fc::ip::net_type::ipv4:
-            return boost::asio::ip::udp::endpoint(boost::asio::ip::address_v4(e.get_address().get_v4()), e.port() );
+           addr = fc::ip::address_v6(e.get_address().get_v4());
+           break;
         case fc::ip::net_type::ipv6:
-            return boost::asio::ip::udp::endpoint(boost::asio::ip::address_v6::from_string(fc::string(e.get_address())), e.port() );
+           addr = e.get_address().get_v6();
+           break;
+        default:
+          FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported endpoint type");
     }
-    FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported endpoint type");
+    return boost::asio::ip::udp::endpoint(boost::asio::ip::address_v6::from_string(fc::string(addr)), e.port() );
   }
   static fc::ip::any_endpoint to_fc_ep( const boost::asio::ip::udp::endpoint& e ) {
     if (e.address().is_v4()) {
@@ -108,8 +112,7 @@ namespace fc {
   }
 
   void udp_socket::open() {
-    my->_sock.open( my->type == fc::ip::net_type::ipv4 ? boost::asio::ip::udp::v4()
-                                                       : boost::asio::ip::udp::v6() );
+    my->_sock.open( boost::asio::ip::udp::v6() );
     my->_sock.non_blocking(true);
   }
   void udp_socket::set_receive_buffer_size( size_t s ) {
@@ -119,7 +122,6 @@ namespace fc {
     bind( ip::any_endpoint( e.get_address(), e.port() ) );
   }
   void udp_socket::bind( const fc::ip::any_endpoint& e ) {
-    my->type = e.get_address().get_type();
     my->_sock.bind( to_asio_ep(e) );
   }
 
@@ -128,11 +130,18 @@ namespace fc {
     ip::any_endpoint ep;
     size_t res = receive_from( receive_buffer, receive_buffer_length, ep );
     if ( ep.get_address().get_type() == ip::net_type::ipv6
-         && !ep.get_address().get_v6().is_mapped_v4() )
+         && ep.get_address().get_v6().is_mapped_v4() )
+    {
+      from = ip::endpoint( ep.get_address().get_v6().get_mapped_v4(), ep.port() );
+    }
+    else if ( ep.get_address().get_type() == ip::net_type::ipv4 )
+    {
+      from = ip::endpoint( ep.get_address().get_v4(), ep.port() );
+    }
+    else
     {
       FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported address type");
     }
-    from = ip::endpoint( ep.get_address().get_v4(), ep.port() );
     return res;
   }
 
@@ -167,11 +176,18 @@ namespace fc {
     ip::any_endpoint ep;
     size_t res = receive_from( receive_buffer, receive_buffer_length, ep );
     if ( ep.get_address().get_type() == ip::net_type::ipv6
-         && !ep.get_address().get_v6().is_mapped_v4() )
+         && ep.get_address().get_v6().is_mapped_v4() )
+    {
+      from = ip::endpoint( ep.get_address().get_v6().get_mapped_v4(), ep.port() );
+    }
+    else if ( ep.get_address().get_type() == ip::net_type::ipv4 )
+    {
+      from = ip::endpoint( ep.get_address().get_v4(), ep.port() );
+    }
+    else
     {
       FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported address type");
     }
-    from = ip::endpoint( ep.get_address().get_v4(), ep.port() );
     return res;
   }
 
@@ -207,11 +223,14 @@ namespace fc {
 
   fc::ip::endpoint udp_socket::local_endpoint()const {
     fc::ip::any_endpoint ep = local_endpoint_46();
-    if ( ep.get_address().get_type() == fc::ip::net_type::ipv4
-         || ( ep.get_address().get_type() == fc::ip::net_type::ipv6
-              && ep.get_address().get_v6().is_mapped_v4() ) )
+    if ( ep.get_address().get_type() == fc::ip::net_type::ipv4)
     {
       return fc::ip::endpoint( ep.get_address().get_v4(), ep.port() );
+    }
+    if ( ep.get_address().get_type() == fc::ip::net_type::ipv6
+         && ep.get_address().get_v6().is_mapped_v4() )
+    {
+      return fc::ip::endpoint( ep.get_address().get_v6().get_mapped_v4(), ep.port() );
     }
     FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported address type");
   }
@@ -223,7 +242,6 @@ namespace fc {
    connect( ip::any_endpoint( e.get_address(), e.port() ) );
   }
   void udp_socket::connect( const fc::ip::any_endpoint& e ) {
-    FC_ASSERT( my->type == ip::net_type::ipv6 || my->type == e.get_address().get_type() );
     my->_sock.connect( to_asio_ep(e) );
   }
 

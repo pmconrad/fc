@@ -58,7 +58,7 @@ BOOST_AUTO_TEST_CASE( ip6_test )
     BOOST_CHECK( !any.is_multicast_address() );
     BOOST_CHECK( !any.is_private_address() );
     BOOST_CHECK( !any.is_public_address() );
-    BOOST_CHECK( !any.is_mapped_v4() );
+    BOOST_CHECK( any.is_mapped_v4() );
 
     fc::ip::address_v6 localhost( "::1" );
     BOOST_CHECK( localhost.is_localhost() );

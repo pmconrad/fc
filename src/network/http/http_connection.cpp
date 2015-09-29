@@ -15,7 +15,7 @@ class fc::http::connection::impl
 {
   public:
    fc::tcp_socket sock;
-   fc::ip::endpoint ep;
+   fc::ip::any_endpoint ep;
    impl() {
    }
 
@@ -84,6 +84,10 @@ namespace fc { namespace http {
 
 // used for clients
 void       connection::connect_to( const fc::ip::endpoint& ep ) {
+  connect_to( fc::ip::any_endpoint( ep.get_address(), ep.port() ) );
+}
+
+void       connection::connect_to( const fc::ip::any_endpoint& ep ) {
   my->sock.close();
   my->sock.connect_to( my->ep = ep );
 }

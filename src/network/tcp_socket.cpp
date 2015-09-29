@@ -81,7 +81,7 @@ namespace fc {
 
   void tcp_socket::open()
   {
-    my->_sock.open(boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0).protocol());
+    my->_sock.open(boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v6(), 0).protocol());
   }
 
   bool tcp_socket::is_open()const {
@@ -118,23 +118,69 @@ namespace fc {
 
   fc::ip::endpoint tcp_socket::remote_endpoint()const
   {
+    fc::ip::any_endpoint ep = remote_endpoint_46();
+    if ( ep.get_address().get_type() == ip::net_type::ipv4)
+    {
+      return fc::ip::endpoint( ep.get_address().get_v4(), ep.port() );
+    }
+    if ( ep.get_address().get_type() == ip::net_type::ipv6
+         && ep.get_address().get_v6().is_mapped_v4() )
+    {
+      return fc::ip::endpoint( ep.get_address().get_v6().get_mapped_v4(), ep.port() );
+    }
+    FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported address type");
+  }
+
+  fc::ip::any_endpoint tcp_socket::remote_endpoint_46()const
+  {
     try
     {
       auto rep = my->_sock.remote_endpoint();
-      return  fc::ip::endpoint(rep.address().to_v4().to_ulong(), rep.port() );
-    } 
+//      if ( rep.address().is_v4() )
+//      {
+//        return fc::ip::any_endpoint(rep.address().to_v4().to_ulong(), rep.port() );
+//      }
+//      if ( rep.address().is_v6() )
+//      {
+        return fc::ip::any_endpoint( fc::ip::address_v6(rep.address().to_v6().to_string()), rep.port() );
+//      }
+    }
     FC_RETHROW_EXCEPTIONS( warn, "error getting socket's remote endpoint" );
+    FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported remote address type");
   }
 
-
   fc::ip::endpoint tcp_socket::local_endpoint() const
+  {
+    fc::ip::any_endpoint ep = local_endpoint_46();
+    if ( ep.get_address().get_type() == ip::net_type::ipv4)
+    {
+      return fc::ip::endpoint( ep.get_address().get_v4(), ep.port() );
+    }
+    if ( ep.get_address().get_type() == ip::net_type::ipv6
+         && ep.get_address().get_v6().is_mapped_v4() )
+    {
+      return fc::ip::endpoint( ep.get_address().get_v6().get_mapped_v4(), ep.port() );
+    }
+    FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported address type");
+  }
+
+  fc::ip::any_endpoint tcp_socket::local_endpoint_46() const
   {
     try
     {
       auto boost_local_endpoint = my->_sock.local_endpoint();
-      return fc::ip::endpoint(boost_local_endpoint.address().to_v4().to_ulong(), boost_local_endpoint.port() );
+//      if ( boost_local_endpoint.address().is_v4() )
+//      {
+//        return fc::ip::any_endpoint(boost_local_endpoint.address().to_v4().to_ulong(), boost_local_endpoint.port() );
+//      }
+//      if ( boost_local_endpoint.address().is_v6() )
+//      {
+        return fc::ip::any_endpoint( fc::ip::address_v6(boost_local_endpoint.address().to_v6().to_string()),
+                                     boost_local_endpoint.port() );
+//      }
     } 
     FC_RETHROW_EXCEPTIONS( warn, "error getting socket's local endpoint" );
+    FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported remote address type");
   }
 
   size_t tcp_socket::readsome( char* buf, size_t len ) 
@@ -147,15 +193,49 @@ namespace fc {
   }
 
   void tcp_socket::connect_to( const fc::ip::endpoint& remote_endpoint ) {
-    fc::asio::tcp::connect(my->_sock, fc::asio::tcp::endpoint( boost::asio::ip::address_v4(remote_endpoint.get_address()), remote_endpoint.port() ) ); 
+    connect_to( fc::ip::any_endpoint( remote_endpoint.get_address(), remote_endpoint.port() ) );
+  }
+
+  void tcp_socket::connect_to( const fc::ip::any_endpoint& remote_endpoint ) {
+    fc::ip::address_v6 addr;
+    if ( remote_endpoint.get_address().get_type() == fc::ip::net_type::ipv4 )
+    {
+      addr = fc::ip::address_v6(remote_endpoint.get_address().get_v4());
+    }
+    else if ( remote_endpoint.get_address().get_type() == fc::ip::net_type::ipv6 )
+    {
+      addr = remote_endpoint.get_address().get_v6();
+    }
+    else
+    {
+      FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported remote address type");
+    }
+    fc::asio::tcp::connect(my->_sock, fc::asio::tcp::endpoint( boost::asio::ip::address_v6::from_string(fc::string(addr)), remote_endpoint.port() ) );
   }
 
   void tcp_socket::bind(const fc::ip::endpoint& local_endpoint)
   {
+      bind( fc::ip::any_endpoint( local_endpoint.get_address(), local_endpoint.port() ) );
+  }
+
+  void tcp_socket::bind(const fc::ip::any_endpoint& local_endpoint)
+  {
     try
     {
-      my->_sock.bind(boost::asio::ip::tcp::endpoint(boost::asio::ip::address_v4(local_endpoint.get_address()), 
-                                                                                local_endpoint.port()));
+      fc::ip::address_v6 addr;
+      if ( local_endpoint.get_address().get_type() == fc::ip::net_type::ipv4 )
+      {
+        addr = fc::ip::address_v6(local_endpoint.get_address().get_v4());
+      }
+      else if ( local_endpoint.get_address().get_type() == fc::ip::net_type::ipv6 )
+      {
+        addr = local_endpoint.get_address().get_v6();
+      }
+      else
+      {
+        FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported remote address type");
+      }
+      my->_sock.bind( fc::asio::tcp::endpoint( boost::asio::ip::address_v6::from_string(fc::string(addr)), local_endpoint.port() ) );
     }
     catch (const std::exception& except)
     {
@@ -242,7 +322,7 @@ namespace fc {
       impl()
       :_accept( fc::asio::default_io_service() )
       {
-        _accept.open(boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0).protocol());
+        _accept.open(boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v6(), 0).protocol());
       }
 
       ~impl(){
@@ -308,18 +388,35 @@ namespace fc {
       my = new impl;
     try
     {
-      my->_accept.bind(boost::asio::ip::tcp::endpoint(boost::asio::ip::address_v4(), port));
+      my->_accept.bind(boost::asio::ip::tcp::endpoint(boost::asio::ip::address_v6(), port));
       my->_accept.listen();
     } 
     FC_RETHROW_EXCEPTIONS(warn, "error listening on socket");
   }
   void tcp_server::listen( const fc::ip::endpoint& ep ) 
   {
+    listen( fc::ip::any_endpoint( ep.get_address(), ep.port() ) );
+  }
+  void tcp_server::listen( const fc::ip::any_endpoint& ep )
+  {
     if( !my ) 
       my = new impl;
     try
     {
-      my->_accept.bind(boost::asio::ip::tcp::endpoint(boost::asio::ip::address_v4::from_string((string)ep.get_address()), ep.port()));
+      fc::ip::address_v6 addr;
+      if ( ep.get_address().get_type() == fc::ip::net_type::ipv4 )
+      {
+        addr = fc::ip::address_v6(ep.get_address().get_v4());
+      }
+      else if ( ep.get_address().get_type() == fc::ip::net_type::ipv6 )
+      {
+        addr = ep.get_address().get_v6();
+      }
+      else
+      {
+        FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported remote address type");
+      }
+      my->_accept.bind( boost::asio::ip::tcp::endpoint(boost::asio::ip::address_v6::from_string(string(addr)), ep.port() ) );
       my->_accept.listen();
     } 
     FC_RETHROW_EXCEPTIONS(warn, "error listening on socket");
@@ -327,9 +424,34 @@ namespace fc {
 
   fc::ip::endpoint tcp_server::get_local_endpoint() const
   {
+    fc::ip::any_endpoint ep = get_local_endpoint_46();
+    if ( ep.get_address().get_type() == ip::net_type::ipv4)
+    {
+      return fc::ip::endpoint( ep.get_address().get_v4(), ep.port() );
+    }
+    if ( ep.get_address().get_type() == ip::net_type::ipv6
+         && ep.get_address().get_v6().is_mapped_v4() )
+    {
+      return fc::ip::endpoint( ep.get_address().get_v6().get_mapped_v4(), ep.port() );
+    }
+    FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported address type");
+  }
+
+  fc::ip::any_endpoint tcp_server::get_local_endpoint_46() const
+  {
     FC_ASSERT( my != nullptr );
-    return fc::ip::endpoint(my->_accept.local_endpoint().address().to_v4().to_ulong(), 
-                            my->_accept.local_endpoint().port() );
+    boost::asio::ip::tcp::endpoint local = my->_accept.local_endpoint();
+//    if ( local.address().is_v4() )
+//    {
+//      return fc::ip::any_endpoint(local.address().to_v4().to_ulong(),
+//                                  local.port() );
+//    }
+//    if ( local.address().is_v4() )
+//    {
+      return fc::ip::any_endpoint(fc::ip::address_v6(local.address().to_v6().to_string()),
+                                  local.port() );
+//    }
+    FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported remote address type");
   }
 
   uint16_t tcp_server::get_port()const

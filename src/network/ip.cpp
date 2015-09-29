@@ -142,7 +142,8 @@ namespace fc { namespace ip {
 
 
   static const unsigned char LOCALHOST[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
-  static const unsigned char V4_PREFIX[12] = {0,0,0,0,0,0,0,0,0,0,0xff,0xff};
+  static const unsigned char V4_MAPPED_PREFIX[12] = {0,0,0,0,0,0,0,0,0,0,0xff,0xff};
+  static const unsigned char V4_COMPAT_PREFIX[12] = {0,0,0,0,0,0,0,0,0,0,0,0};
 
   address_v6::address_v6() {
       memset( &_ip, 0, sizeof( _ip ) );
@@ -153,7 +154,7 @@ namespace fc { namespace ip {
 
   address_v6::address_v6( const address& ip4 )
   {
-      memcpy( _ip.begin(), V4_PREFIX, sizeof(V4_PREFIX) );
+      memcpy( _ip.begin(), V4_MAPPED_PREFIX, sizeof(V4_MAPPED_PREFIX) );
       uint32_t v4 = uint32_t(ip4);
       _ip.begin()[12] = v4 >> 24;
       _ip.begin()[13] = (v4 >> 16) & 0xff;
@@ -293,7 +294,9 @@ namespace fc { namespace ip {
 
   bool address_v6::is_mapped_v4()const
   {
-      return memcmp( _ip.begin(), V4_PREFIX, sizeof(V4_PREFIX) ) == 0;
+      return memcmp( _ip.begin(), V4_MAPPED_PREFIX, sizeof(V4_MAPPED_PREFIX) ) == 0
+             || (memcmp( _ip.begin(), V4_COMPAT_PREFIX, sizeof(V4_COMPAT_PREFIX) ) == 0
+                 && uint32_t(from_bytes( _ip.begin() + 12 )) != 1);
   }
 
   address address_v6::get_mapped_v4()const
