@@ -165,28 +165,64 @@ namespace fc {
    }
 
    void udt_socket::bind( const fc::ip::endpoint& local_endpoint )
+   {
+      bind( fc::ip::any_endpoint( local_endpoint.get_address(), local_endpoint.port() ) );
+   }
+
+   void udt_socket::bind( const fc::ip::any_endpoint& local_endpoint )
    { try {
       if( !is_open() ) 
          open();
 
-      sockaddr_in local_addr;
-      local_addr.sin_family = AF_INET;
-      local_addr.sin_port = htons(local_endpoint.port());
-      local_addr.sin_addr.s_addr = htonl(local_endpoint.get_address());
+      sockaddr_in6 local_addr;
+      local_addr.sin6_family = AF_INET6;
+      local_addr.sin6_port = htons(local_endpoint.port());
+      fc::ip::raw_ip6 addr;
+      if ( local_endpoint.get_address().get_type() == fc::ip::net_type::ipv4 )
+      {
+          addr = ip::raw_ip6( fc::ip::address_v6( local_endpoint.get_address().get_v4() ) );
+      }
+      else if ( local_endpoint.get_address().get_type() == fc::ip::net_type::ipv6 )
+      {
+          addr = ip::raw_ip6( local_endpoint.get_address().get_v6() );
+      }
+      else
+      {
+          FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported address type");
+      }
+      memcpy( &local_addr.sin6_addr, addr.begin(), sizeof(local_addr.sin6_addr) );
 
       if( UDT::ERROR == UDT::bind(_udt_socket_id, (sockaddr*)&local_addr, sizeof(local_addr)) )
          check_udt_errors();
    } FC_CAPTURE_AND_RETHROW() }
 
-   void udt_socket::connect_to( const ip::endpoint& remote_endpoint )
+   void udt_socket::connect_to( const fc::ip::endpoint& remote_endpoint )
+   {
+      connect_to( fc::ip::any_endpoint( remote_endpoint.get_address(), remote_endpoint.port() ) );
+   }
+
+   void udt_socket::connect_to( const ip::any_endpoint& remote_endpoint )
    { try {
       if( !is_open() ) 
          open();
 
-      sockaddr_in serv_addr;
-      serv_addr.sin_family = AF_INET;
-      serv_addr.sin_port = htons(remote_endpoint.port());
-      serv_addr.sin_addr.s_addr = htonl(remote_endpoint.get_address());
+      sockaddr_in6 serv_addr;
+      serv_addr.sin6_family = AF_INET6;
+      serv_addr.sin6_port = htons(remote_endpoint.port());
+      fc::ip::raw_ip6 addr;
+      if ( remote_endpoint.get_address().get_type() == fc::ip::net_type::ipv4 )
+      {
+          addr = ip::raw_ip6(fc::ip::address_v6( remote_endpoint.get_address().get_v4() ) );
+      }
+      else if ( remote_endpoint.get_address().get_type() == fc::ip::net_type::ipv6 )
+      {
+          addr = ip::raw_ip6( remote_endpoint.get_address().get_v6() );
+      }
+      else
+      {
+          FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported address type");
+      }
+      memcpy( &serv_addr.sin6_addr, addr.begin(), sizeof(serv_addr.sin6_addr) );
 
       // UDT doesn't allow now blocking connects... 
       fc::thread connect_thread("connect_thread");
@@ -203,23 +239,55 @@ namespace fc {
    } FC_CAPTURE_AND_RETHROW( (remote_endpoint) ) }
 
    ip::endpoint udt_socket::remote_endpoint() const
+   {
+      ip::any_endpoint ep = remote_endpoint_46();
+      if ( ep.get_address().get_type() == ip::net_type::ipv4)
+      {
+        return fc::ip::endpoint( ep.get_address().get_v4(), ep.port() );
+      }
+      if ( ep.get_address().get_type() == ip::net_type::ipv6
+           && ep.get_address().get_v6().is_mapped_v4() )
+      {
+        return fc::ip::endpoint( ep.get_address().get_v6().get_mapped_v4(), ep.port() );
+      }
+      FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported address type");
+   }
+   ip::any_endpoint udt_socket::remote_endpoint_46() const
    { try {
-      sockaddr_in peer_addr;
+      sockaddr_in6 peer_addr;
       int peer_addr_size = sizeof(peer_addr);
       int error_code = UDT::getpeername( _udt_socket_id, (struct sockaddr*)&peer_addr, &peer_addr_size );
       if( error_code == UDT::ERROR )
           check_udt_errors();
-      return ip::endpoint( ip::address( htonl( peer_addr.sin_addr.s_addr ) ), htons(peer_addr.sin_port) );
+     fc::ip::raw_ip6 raw;
+     memcpy( raw.begin(), &peer_addr.sin6_addr, raw.size() );
+     return ip::any_endpoint( ip::address_v6( raw ), htons(peer_addr.sin6_port) );
    } FC_CAPTURE_AND_RETHROW() }
 
    ip::endpoint udt_socket::local_endpoint() const
+   {
+      ip::any_endpoint ep = local_endpoint_46();
+      if ( ep.get_address().get_type() == ip::net_type::ipv4)
+      {
+        return fc::ip::endpoint( ep.get_address().get_v4(), ep.port() );
+      }
+      if ( ep.get_address().get_type() == ip::net_type::ipv6
+           && ep.get_address().get_v6().is_mapped_v4() )
+      {
+        return fc::ip::endpoint( ep.get_address().get_v6().get_mapped_v4(), ep.port() );
+      }
+      FC_THROW_EXCEPTION(invalid_arg_exception, "unsupported address type");
+   }
+   ip::any_endpoint udt_socket::local_endpoint_46() const
    { try {
-      sockaddr_in sock_addr;
+      sockaddr_in6 sock_addr;
       int addr_size = sizeof(sock_addr);
       int error_code = UDT::getsockname( _udt_socket_id, (struct sockaddr*)&sock_addr, &addr_size );
       if( error_code == UDT::ERROR )
           check_udt_errors();
-      return ip::endpoint( ip::address( htonl( sock_addr.sin_addr.s_addr ) ), htons(sock_addr.sin_port) );
+     fc::ip::raw_ip6 raw;
+     memcpy( raw.begin(), &sock_addr.sin6_addr, raw.size() );
+     return ip::any_endpoint( ip::address_v6( raw ), htons(sock_addr.sin6_port) );
    } FC_CAPTURE_AND_RETHROW() }
 
 
@@ -377,6 +445,10 @@ namespace fc {
   } FC_CAPTURE_AND_RETHROW() }
 
   void udt_server::listen( const ip::endpoint& ep )
+  {
+      listen( fc::ip::any_endpoint( ep.get_address(), ep.port() ) );
+  }
+  void udt_server::listen( const ip::any_endpoint& ep )
   { try {
       sockaddr_in6 my_addr;
       my_addr.sin6_family = AF_INET6;

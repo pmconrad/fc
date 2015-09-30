@@ -22,11 +22,12 @@ int main( int argc, char** argv )
           int r = sock.readsome( response.data(), response.size() );
           while( r )
           {
+             std::cout << "Got: ";
              std::cout.write( response.data(), r );
              r = sock.readsome( response.data(), response.size() );
              //sock.write( response.data(), response.size() );
           }
-
+          std::cout << "Connection closed\n";
           std::string goodbye = "goodbye cruel world";
           sock.write( goodbye.c_str(), goodbye.size() );
       }
