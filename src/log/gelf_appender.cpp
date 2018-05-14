@@ -11,9 +11,12 @@
 #include <fc/compress/zlib.hpp>
 
 #include <boost/lexical_cast.hpp>
+#include <boost/thread/mutex.hpp>
+
 #include <atomic>
 #include <iomanip>
 #include <iostream>
+#include <mutex>
 #include <queue>
 #include <sstream>
 #include <iostream>
@@ -28,6 +31,7 @@ namespace fc
     optional<ip::endpoint>     gelf_endpoint;
     udp_socket                 gelf_socket;
     std::atomic<uint64_t>      gelf_log_counter;
+    boost::mutex               gelf_log_mutex;
 
     impl(const config& c) : 
       cfg(c), gelf_log_counter(0)
@@ -154,6 +158,8 @@ namespace fc
         gelf_message_as_string[1] == (char)0xda)
       gelf_message_as_string[1] = (char)0x9c;
     assert(gelf_message_as_string[1] == (char)0x9c);
+
+    std::unique_lock<boost::mutex> lock(my->gelf_log_mutex);
 
     // packets are sent by UDP, and they tend to disappear if they
     // get too large.  It's hard to find any solid numbers on how
