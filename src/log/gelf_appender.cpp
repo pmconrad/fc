@@ -131,7 +131,7 @@ namespace fc
     string gelf_message_as_string;
     try
     {
-       gelf_message_as_string = json::to_string(gelf_message);
+       gelf_message_as_string = json::to_string(gelf_message, json::legacy_generator);
     }
     catch( const fc::assert_exception& e )
     {
