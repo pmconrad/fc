@@ -199,8 +199,8 @@ struct reflector_verifier_visitor {
    explicit reflector_verifier_visitor( Class& c )
      : obj(c) {}
 
-   ~reflector_verifier_visitor() noexcept(false) {
-      verify( obj );
+   void reflector_verify() {
+      reflect_verify( obj );
    }
 
  private:
@@ -216,7 +216,7 @@ struct reflector_verifier_visitor {
    auto verify_imp(const T& t, long) -> decltype(t, void()) {}
 
    template<typename T>
-   auto verify(const T& t) -> decltype(verify_imp(t, 0), void()) {
+   auto reflect_verify(const T& t) -> decltype(verify_imp(t, 0), void()) {
       verify_imp(t, 0);
    }
 
@@ -255,6 +255,7 @@ template<typename Visitor>\
 static inline void visit( const Visitor& v ) { \
     BOOST_PP_SEQ_FOR_EACH( FC_REFLECT_VISIT_BASE, v, INHERITS ) \
     BOOST_PP_SEQ_FOR_EACH( FC_REFLECT_VISIT_MEMBER, v, MEMBERS ) \
+    verify( v ); \
 }
 
 #endif // DOXYGEN
@@ -362,6 +363,16 @@ template<> struct reflector<TYPE> {\
     using members = typename typelist::concat<inherited_members, native_members>::type; \
     using base_classes = typename typelist::builder<>::type \
           BOOST_PP_SEQ_FOR_EACH( FC_CONCAT_TYPE, x, INHERITS ) ::finalize; \
+    template<typename Visitor> \
+    static auto verify_imp(const Visitor& v, int) -> decltype(v.reflector_verify(), void()) { \
+       v.reflector_verify(); \
+    } \
+    template<typename Visitor> \
+    static auto verify_imp(const Visitor& v, long) -> decltype(v, void()) {} \
+    template<typename Visitor> \
+    static auto verify(const Visitor& v) -> decltype(verify_imp(v, 0), void()) { \
+       verify_imp(v, 0); \
+    } \
     enum  member_count_enum {  \
       local_member_count = typelist::length<native_members>(), \
       total_member_count = typelist::length<members>() \
@@ -389,6 +400,16 @@ template<BOOST_PP_SEQ_ENUM(TEMPLATE_ARGS)> struct reflector<TYPE> {\
     using members = typename typelist::concat<inherited_members, native_members>::type; \
     using base_classes = typename typelist::builder<>::type \
           BOOST_PP_SEQ_FOR_EACH( FC_CONCAT_TYPE, x, INHERITS ) ::finalize; \
+    template<typename Visitor> \
+    static auto verify_imp(const Visitor& v, int) -> decltype(v.reflector_verify(), void()) { \
+       v.reflector_verify(); \
+    } \
+    template<typename Visitor> \
+    static auto verify_imp(const Visitor& v, long) -> decltype(v, void()) {} \
+    template<typename Visitor> \
+    static auto verify(const Visitor& v) -> decltype(verify_imp(v, 0), void()) { \
+       verify_imp(v, 0); \
+    } \
     enum  member_count_enum {  \
       local_member_count = typelist::length<native_members>(), \
       total_member_count = typelist::length<members>() \
