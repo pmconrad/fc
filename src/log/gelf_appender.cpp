@@ -11,6 +11,7 @@
 #include <fc/compress/zlib.hpp>
 
 #include <boost/lexical_cast.hpp>
+#include <atomic>
 #include <iomanip>
 #include <iostream>
 #include <queue>
@@ -26,9 +27,10 @@ namespace fc
     config                     cfg;
     optional<ip::endpoint>     gelf_endpoint;
     udp_socket                 gelf_socket;
+    std::atomic<uint64_t>      gelf_log_counter;
 
     impl(const config& c) : 
-      cfg(c)
+      cfg(c), gelf_log_counter(0)
     {
     }
 
@@ -100,8 +102,7 @@ namespace fc
     gelf_message["timestamp"] = time_ns / 1000000.;
     gelf_message["_timestamp_ns"] = time_ns;
 
-    static unsigned long gelf_log_counter;
-    gelf_message["_log_id"] = fc::to_string(++gelf_log_counter);
+    gelf_message["_log_id"] = fc::to_string(++my->gelf_log_counter);
 
     switch (context.get_log_level())
     {
