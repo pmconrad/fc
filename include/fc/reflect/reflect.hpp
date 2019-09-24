@@ -434,6 +434,16 @@ template<> struct reflector<TYPE> {\
     using members = typename typelist::concat<inherited_members, native_members>::type; \
     using base_classes = typename typelist::builder<>::type \
           BOOST_PP_SEQ_FOR_EACH( FC_CONCAT_TYPE, x, INHERITS ) ::finalize; \
+    template<typename Visitor> \
+    static auto verify_imp(const Visitor& v, int) -> decltype(v.reflector_verify(), void()) { \
+       v.reflector_verify(); \
+    } \
+    template<typename Visitor> \
+    static auto verify_imp(const Visitor& v, long) -> decltype(v, void()) {} \
+    template<typename Visitor> \
+    static auto verify(const Visitor& v) -> decltype(verify_imp(v, 0), void()) { \
+       verify_imp(v, 0); \
+    } \
     enum  member_count_enum {  \
       local_member_count = typelist::length<native_members>(), \
       total_member_count = typelist::length<members>() \
