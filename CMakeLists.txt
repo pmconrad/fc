@@ -41,7 +41,8 @@ if(CMAKE_SIZEOF_VOID_P EQUAL 8)
 endif()
 
 SET(BOOST_COMPONENTS)
-LIST(APPEND BOOST_COMPONENTS coroutine thread date_time filesystem system program_options chrono unit_test_framework context iostreams regex)
+LIST(APPEND BOOST_COMPONENTS coroutine thread date_time filesystem system program_options chrono
+            unit_test_framework context iostreams regex fiber)
 # boost::endian is also required, but FindBoost can't handle header-only libs
 SET( Boost_USE_STATIC_LIBS ON CACHE STRING "ON or OFF" )
 
@@ -167,6 +168,7 @@ set( fc_sources
      src/exception.cpp
      src/variant_object.cpp
      src/static_variant.cpp
+     src/thread/fibers.cpp
      src/thread/thread.cpp
      src/thread/thread_specific.cpp
      src/thread/future.cpp
