@@ -174,6 +174,9 @@ namespace fc {
       worker_pool& get_worker_pool()
       {
          static worker_pool the_pool;
+         // Note: the destructor of pool_impl throws in all_tests because boost::fibers::mutex detects a deadlock.
+         // I think the problem is not a deadlock but that the destructor is run from a thread that has no
+         // thread_scheduler defined.
          return the_pool;
       }
    }
