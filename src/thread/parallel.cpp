@@ -66,14 +66,19 @@ namespace fc {
          {
             FC_ASSERT( num_threads > 0, "A worker pool should have at least one thread!" );
             threads.reserve( num_threads );
+            std::atomic<uint32_t> ready{ 0 };
             for( uint32_t i = 0; i < num_threads; i++ )
             {
-               threads.emplace_back( [this] () {
+               threads.emplace_back( [this,&ready] () {
                   boost::fibers::use_scheduling_algorithm< target_thread_scheduler< pool_scheduler > >( *this );
                   std::unique_lock< boost::fibers::mutex > lock( close_wait_mutex );
+                  ready++;
+                  close_wait.notify_all();
                   close_wait.wait( lock, [this] () { return closing; } );
                } );
             }
+            std::unique_lock< boost::fibers::mutex > lock( close_wait_mutex );
+            close_wait.wait( lock, [this,&ready,num_threads] () { return ready.load() == num_threads; } );
          }
          pool_impl( pool_impl& copy ) = delete;
          pool_impl( pool_impl&& move ) = delete;
