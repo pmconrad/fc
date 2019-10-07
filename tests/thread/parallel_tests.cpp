@@ -32,9 +32,9 @@
 #include <fc/crypto/sha224.hpp>
 #include <fc/crypto/sha256.hpp>
 #include <fc/crypto/sha512.hpp>
+#include <fc/thread/async.hpp>
 #include <fc/thread/fibers.hpp>
 #include <fc/thread/parallel.hpp>
-#include <fc/thread/thread.hpp>
 #include <fc/time.hpp>
 
 #include <chrono>
@@ -211,90 +211,97 @@ BOOST_AUTO_TEST_CASE( serial_valve )
    fc::serial_valve valve;
 
    { // Simple test, f2 finishes before f1
-      fc::promise<void>::ptr syncer = fc::promise<void>::create();
-      fc::promise<void>::ptr waiter = fc::promise<void>::create();
-      auto p1 = fc::async([&counter,&valve,syncer,waiter] () {
-         valve.do_serial( [syncer,waiter](){ syncer->set_value();
-                                             fc::future<void>( waiter ).wait(); },
+      boost::fibers::promise<void> syncer_p;
+      boost::fibers::future<void> syncer_f = syncer_p.get_future();
+      boost::fibers::promise<void> waiter_p;
+      boost::fibers::future<void> waiter_f = waiter_p.get_future();
+      auto p1 = fc::async([&counter,&valve,syncer = std::move(syncer_p),waiter = std::move(waiter_f)] () mutable {
+         valve.do_serial( [&syncer,&waiter](){ syncer.set_value();
+                                               waiter.wait(); },
                           [&counter](){ BOOST_CHECK_EQUAL( 0u, counter.load() );
                                         counter.fetch_add(1); } );
       });
-      fc::future<void>( syncer ).wait();
+      syncer_f.wait();
 
       // at this point, p1.f1 has started executing and is waiting on waiter
 
-      syncer = fc::promise<void>::create();
-      auto p2 = fc::async([&counter,&valve,syncer] () {
-         valve.do_serial( [syncer](){ syncer->set_value(); },
+      syncer_p = boost::fibers::promise<void>();
+      syncer_f = syncer_p.get_future();
+      auto p2 = fc::async([&counter,&valve,syncer = std::move(syncer_p)] () mutable {
+         valve.do_serial( [&syncer](){ syncer.set_value(); },
                           [&counter](){ BOOST_CHECK_EQUAL( 1u, counter.load() );
                                         counter.fetch_add(1); } );
       });
-      fc::future<void>( syncer ).wait();
+      syncer_f.wait();
 
-      fc::usleep( fc::milliseconds(10) );
+      boost::this_fiber::sleep_for( std::chrono::milliseconds(10) );
 
       // at this point, p2.f1 has started executing and p2.f2 is waiting for its turn
 
-      BOOST_CHECK( !p1.ready() );
-      BOOST_CHECK( !p2.ready() );
+      BOOST_CHECK( boost::fibers::future_status::timeout == p1.wait_for( std::chrono::seconds(0) ) );
+      BOOST_CHECK( boost::fibers::future_status::timeout == p2.wait_for( std::chrono::seconds(0) ) );
 
-      waiter->set_value(); // signal p1.f1 to continue
+      waiter_p.set_value(); // signal p1.f1 to continue
 
       p2.wait(); // and wait for p2.f2 to complete
 
-      BOOST_CHECK( p1.ready() );
-      BOOST_CHECK( p2.ready() );
+      BOOST_CHECK( boost::fibers::future_status::ready == p1.wait_for( std::chrono::seconds(0) ) );
+      BOOST_CHECK( boost::fibers::future_status::ready == p2.wait_for( std::chrono::seconds(0) ) );
       BOOST_CHECK_EQUAL( 2u, counter.load() );
    }
 
    { // Triple test, f3 finishes first, then f1, finally f2
-      fc::promise<void>::ptr syncer = fc::promise<void>::create();
-      fc::promise<void>::ptr waiter = fc::promise<void>::create();
+      boost::fibers::promise<void> syncer_p;
+      boost::fibers::future<void> syncer_f = syncer_p.get_future();
+      boost::fibers::promise<void> waiter_p;
+      boost::fibers::future<void> waiter_f = waiter_p.get_future();
       counter.store(0);
-      auto p1 = fc::async([&counter,&valve,syncer,waiter] () {
-         valve.do_serial( [&syncer,waiter](){ syncer->set_value();
-                                              fc::future<void>( waiter ).wait(); },
+      auto p1 = fc::async([&counter,&valve,syncer = std::move(syncer_p),waiter = std::move(waiter_f)] () mutable {
+         valve.do_serial( [&syncer,&waiter](){ syncer.set_value();
+                                               waiter.wait(); },
                           [&counter](){ BOOST_CHECK_EQUAL( 0u, counter.load() );
                                         counter.fetch_add(1); } );
       });
-      fc::future<void>( syncer ).wait();
+      syncer_f.wait();
 
       // at this point, p1.f1 has started executing and is waiting on waiter
 
-      syncer = fc::promise<void>::create();
-      auto p2 = fc::async([&counter,&valve,syncer] () {
-         valve.do_serial( [&syncer](){ syncer->set_value();
-                                       fc::usleep( fc::milliseconds(100) ); },
+      syncer_p = boost::fibers::promise<void>();
+      syncer_f = syncer_p.get_future();
+      auto p2 = fc::async([&counter,&valve,syncer = std::move(syncer_p)] () mutable {
+         valve.do_serial( [&syncer](){ syncer.set_value();
+                                       boost::this_fiber::sleep_for( std::chrono::milliseconds(100) ); },
                           [&counter](){ BOOST_CHECK_EQUAL( 1u, counter.load() );
                                         counter.fetch_add(1); } );
       });
-      fc::future<void>( syncer ).wait();
+      syncer_f.wait();
 
       // at this point, p2.f1 has started executing and is sleeping
 
-      syncer = fc::promise<void>::create();
-      auto p3 = fc::async([&counter,&valve,syncer] () {
-         valve.do_serial( [syncer](){ syncer->set_value(); },
+      syncer_p = boost::fibers::promise<void>();
+      syncer_f = syncer_p.get_future();
+      auto p3 = fc::async([&counter,&valve,syncer = std::move(syncer_p)] () mutable {
+         valve.do_serial( [&syncer](){ syncer.set_value(); },
                           [&counter](){ BOOST_CHECK_EQUAL( 2u, counter.load() );
                                         counter.fetch_add(1); } );
       });
-      fc::future<void>( syncer ).wait();
+      syncer_f.wait();
 
-      fc::usleep( fc::milliseconds(10) );
+      boost::this_fiber::sleep_for( std::chrono::milliseconds(10) );
 
       // at this point, p3.f1 has started executing and p3.f2 is waiting for its turn
 
-      BOOST_CHECK( !p1.ready() );
-      BOOST_CHECK( !p2.ready() );
-      BOOST_CHECK( !p3.ready() );
+      BOOST_CHECK( boost::fibers::future_status::timeout == p1.wait_for( std::chrono::seconds(0) ) );
+      BOOST_CHECK( boost::fibers::future_status::timeout == p2.wait_for( std::chrono::seconds(0) ) );
+      BOOST_CHECK( boost::fibers::future_status::timeout == p3.wait_for( std::chrono::seconds(0) ) );
 
-      waiter->set_value(); // signal p1.f1 to continue
+      waiter_p.set_value(); // signal p1.f1 to continue
 
       p3.wait(); // and wait for p3.f2 to complete
 
-      BOOST_CHECK( p1.ready() );
-      BOOST_CHECK( p2.ready() );
-      BOOST_CHECK( p3.ready() );
+      BOOST_CHECK( boost::fibers::future_status::ready == p1.wait_for( std::chrono::seconds(0) ) );
+      BOOST_CHECK( boost::fibers::future_status::ready == p2.wait_for( std::chrono::seconds(0) ) );
+      BOOST_CHECK( boost::fibers::future_status::ready == p3.wait_for( std::chrono::seconds(0) ) );
       BOOST_CHECK_EQUAL( 3u, counter.load() );
    }
 
