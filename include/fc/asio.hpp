@@ -4,10 +4,9 @@
  */
 #pragma once
 #include <boost/asio.hpp>
-#include <boost/bind.hpp>
 #include <boost/thread.hpp>
+#include <boost/fiber/future.hpp>
 #include <vector>
-#include <fc/thread/future.hpp>
 #include <fc/io/iostream.hpp>
 
 namespace fc { 
@@ -23,34 +22,24 @@ namespace asio {
         class read_write_handler
         {
         public:
-          read_write_handler(const promise<size_t>::ptr& p);
+          read_write_handler( boost::fibers::promise<size_t>&& p );
           void operator()(const boost::system::error_code& ec, size_t bytes_transferred);
         private:
-          promise<size_t>::ptr _completion_promise;
+          boost::fibers::promise<size_t> _completion_promise;
         };
 
         class read_write_handler_with_buffer
         {
         public:
-          read_write_handler_with_buffer(const promise<size_t>::ptr& p, 
+          read_write_handler_with_buffer( boost::fibers::promise<size_t>&& p, 
                                          const std::shared_ptr<const char>& buffer);
           void operator()(const boost::system::error_code& ec, size_t bytes_transferred);
         private:
-          promise<size_t>::ptr _completion_promise;
+          boost::fibers::promise<size_t> _completion_promise;
           std::shared_ptr<const char> _buffer;
         };
 
-        //void read_write_handler( const promise<size_t>::ptr& p, 
-        //                         const boost::system::error_code& ec, 
-        //                         size_t bytes_transferred );
-        void read_write_handler_ec( promise<size_t>* p, 
-                                    boost::system::error_code* oec, 
-                                    const boost::system::error_code& ec, 
-                                    size_t bytes_transferred );
-        void error_handler( const promise<void>::ptr& p, 
-                              const boost::system::error_code& ec );
-        void error_handler_ec( promise<boost::system::error_code>* p, 
-                              const boost::system::error_code& ec ); 
+        void error_handler( boost::fibers::promise<void>&& p, const boost::system::error_code& ec );
 
         template<typename C>
         struct non_blocking { 
@@ -81,7 +70,7 @@ namespace asio {
           static uint16_t get_num_threads();
           boost::asio::io_service*          io;
        private:
-          std::vector<boost::thread*>       asio_threads;
+          std::vector<boost::thread>        asio_threads;
           boost::asio::io_service::work*    the_work;
        protected:
           static uint16_t num_io_threads; // marked protected to help with testing
@@ -102,9 +91,10 @@ namespace asio {
      */
     template<typename AsyncReadStream, typename MutableBufferSequence>
     size_t read( AsyncReadStream& s, const MutableBufferSequence& buf ) {
-        promise<size_t>::ptr p = promise<size_t>::create("fc::asio::read");
-        boost::asio::async_read( s, buf, detail::read_write_handler(p) );
-        return p->wait();
+        boost::fibers::promise<size_t> p;
+        auto f = p.get_future();
+        boost::asio::async_read( s, buf, detail::read_write_handler( std::move(p) ) );
+        return f.get();
     }
     /** 
      *  This method will read at least 1 byte from the stream and will
@@ -120,49 +110,55 @@ namespace asio {
      *  @return the number of bytes read.
      */
     template<typename AsyncReadStream, typename MutableBufferSequence>
-    future<size_t> read_some(AsyncReadStream& s, const MutableBufferSequence& buf)
+    boost::fibers::future<size_t> read_some(AsyncReadStream& s, const MutableBufferSequence& buf)
     {
-      promise<size_t>::ptr completion_promise = promise<size_t>::create("fc::asio::async_read_some");
-      s.async_read_some(buf, detail::read_write_handler(completion_promise));
-      return completion_promise;//->wait();
+      boost::fibers::promise<size_t> completion_promise;
+      auto f = completion_promise.get_future();
+      s.async_read_some(buf, detail::read_write_handler( std::move(completion_promise) ) );
+      return f;
     }
 
     template<typename AsyncReadStream>
-    future<size_t> read_some(AsyncReadStream& s, char* buffer, size_t length, size_t offset = 0)
+    boost::fibers::future<size_t> read_some(AsyncReadStream& s, char* buffer, size_t length, size_t offset = 0)
     {
-      promise<size_t>::ptr completion_promise = promise<size_t>::create("fc::asio::async_read_some");
+      boost::fibers::promise<size_t> completion_promise;
+      auto f = completion_promise.get_future();
       s.async_read_some(boost::asio::buffer(buffer + offset, length), 
-                        detail::read_write_handler(completion_promise));
-      return completion_promise;//->wait();
+                        detail::read_write_handler( std::move(completion_promise) ) );
+      return f;
     }
 
     template<typename AsyncReadStream>
-    future<size_t> read_some(AsyncReadStream& s, const std::shared_ptr<char>& buffer, size_t length, size_t offset)
+    boost::fibers::future<size_t> read_some(AsyncReadStream& s, const std::shared_ptr<char>& buffer, size_t length, size_t offset)
     {
-      promise<size_t>::ptr completion_promise = promise<size_t>::create("fc::asio::async_read_some");
+      boost::fibers::promise<size_t> completion_promise;
+      auto f = completion_promise.get_future();
       s.async_read_some(boost::asio::buffer(buffer.get() + offset, length), 
-                        detail::read_write_handler_with_buffer(completion_promise, buffer));
-      return completion_promise;//->wait();
+                        detail::read_write_handler_with_buffer( std::move(completion_promise), buffer));
+      return f;
     }
 
     template<typename AsyncReadStream, typename MutableBufferSequence>
-    void async_read_some(AsyncReadStream& s, const MutableBufferSequence& buf, promise<size_t>::ptr completion_promise)
+    void async_read_some( AsyncReadStream& s, const MutableBufferSequence& buf,
+                          boost::fibers::promise<size_t>&& completion_promise )
     {
-      s.async_read_some(buf, detail::read_write_handler(completion_promise));
+      s.async_read_some( buf, detail::read_write_handler( std::move(completion_promise) ) );
     }
 
     template<typename AsyncReadStream>
     void async_read_some(AsyncReadStream& s, char* buffer,
-                         size_t length, promise<size_t>::ptr completion_promise)
+                         size_t length, boost::fibers::promise<size_t>&& completion_promise)
     {
-      s.async_read_some(boost::asio::buffer(buffer, length), detail::read_write_handler(completion_promise));
+      s.async_read_some( boost::asio::buffer(buffer, length),
+                         detail::read_write_handler( std::move(completion_promise) ) );
     }
 
     template<typename AsyncReadStream>
     void async_read_some(AsyncReadStream& s, const std::shared_ptr<char>& buffer,
-                         size_t length, size_t offset, promise<size_t>::ptr completion_promise)
+                         size_t length, size_t offset, boost::fibers::promise<size_t>&& completion_promise )
     {
-      s.async_read_some(boost::asio::buffer(buffer.get() + offset, length), detail::read_write_handler_with_buffer(completion_promise, buffer));
+      s.async_read_some( boost::asio::buffer(buffer.get() + offset, length),
+                         detail::read_write_handler_with_buffer( std::move(completion_promise), buffer ) );
     }
 
     template<typename AsyncReadStream>
@@ -179,9 +175,10 @@ namespace asio {
      */
     template<typename AsyncWriteStream, typename ConstBufferSequence>
     size_t write( AsyncWriteStream& s, const ConstBufferSequence& buf ) {
-        promise<size_t>::ptr p = promise<size_t>::create("fc::asio::write");
-        boost::asio::async_write(s, buf, detail::read_write_handler(p));
-        return p->wait();
+        boost::fibers::promise<size_t> p;
+        auto f = p.get_future();
+        boost::asio::async_write(s, buf, detail::read_write_handler( std::move(p) ) );
+        return f.get();
     }
 
     /** 
@@ -190,26 +187,31 @@ namespace asio {
      *  @return the number of bytes written
      */
     template<typename AsyncWriteStream, typename ConstBufferSequence>
-    future<size_t> write_some( AsyncWriteStream& s, const ConstBufferSequence& buf ) {
-        promise<size_t>::ptr p = promise<size_t>::create("fc::asio::write_some");
-        s.async_write_some( buf, detail::read_write_handler(p));
-        return p; //->wait();
+    boost::fibers::future<size_t> write_some( AsyncWriteStream& s, const ConstBufferSequence& buf ) {
+        boost::fibers::promise<size_t> p;
+        auto f = p.get_future();
+        s.async_write_some( buf, detail::read_write_handler( std::move(p) ) );
+        return f;
     }
 
     template<typename AsyncWriteStream>
-    future<size_t> write_some( AsyncWriteStream& s, const char* buffer, 
-                               size_t length, size_t offset = 0) {
-        promise<size_t>::ptr p = promise<size_t>::create("fc::asio::write_some");
-        s.async_write_some( boost::asio::buffer(buffer + offset, length), detail::read_write_handler(p));
-        return p; //->wait();
+    boost::fibers::future<size_t> write_some( AsyncWriteStream& s, const char* buffer, 
+                                              size_t length, size_t offset = 0 ) {
+        boost::fibers::promise<size_t> p;
+        auto f = p.get_future();
+        s.async_write_some( boost::asio::buffer(buffer + offset, length),
+                            detail::read_write_handler( std::move(p) ) );
+        return f;
     }
 
     template<typename AsyncWriteStream>
-    future<size_t> write_some( AsyncWriteStream& s, const std::shared_ptr<const char>& buffer, 
-                               size_t length, size_t offset ) {
-        promise<size_t>::ptr p = promise<size_t>::create("fc::asio::write_some");
-        s.async_write_some( boost::asio::buffer(buffer.get() + offset, length), detail::read_write_handler_with_buffer(p, buffer));
-        return p; //->wait();
+    boost::fibers::future<size_t> write_some( AsyncWriteStream& s, const std::shared_ptr<const char>& buffer, 
+                                              size_t length, size_t offset ) {
+        boost::fibers::promise<size_t> p;
+        auto f = p.get_future();
+        s.async_write_some( boost::asio::buffer(buffer.get() + offset, length),
+                            detail::read_write_handler_with_buffer( std::move(p), buffer ) );
+        return f;
     }
 
     /**
@@ -218,22 +220,23 @@ namespace asio {
     *  @return the number of bytes written
     */
     template<typename AsyncWriteStream, typename ConstBufferSequence>
-    void async_write_some(AsyncWriteStream& s, const ConstBufferSequence& buf, promise<size_t>::ptr completion_promise) {
-      s.async_write_some(buf, detail::read_write_handler(completion_promise));
+    void async_write_some( AsyncWriteStream& s, const ConstBufferSequence& buf,
+                           boost::fibers::promise<size_t>&& completion_promise ) {
+      s.async_write_some(buf, detail::read_write_handler( std::move(completion_promise) ) );
     }
 
     template<typename AsyncWriteStream>
     void async_write_some(AsyncWriteStream& s, const char* buffer, 
-                          size_t length, promise<size_t>::ptr completion_promise) {
+                          size_t length, boost::fibers::promise<size_t>&& completion_promise ) {
       s.async_write_some(boost::asio::buffer(buffer, length), 
-                         detail::read_write_handler(completion_promise));
+                         detail::read_write_handler( std::move(completion_promise) ) );
     }
 
     template<typename AsyncWriteStream>
     void async_write_some(AsyncWriteStream& s, const std::shared_ptr<const char>& buffer, 
-                          size_t length, size_t offset, promise<size_t>::ptr completion_promise) {
+                          size_t length, size_t offset, boost::fibers::promise<size_t>&& completion_promise ) {
       s.async_write_some(boost::asio::buffer(buffer.get() + offset, length), 
-                         detail::read_write_handler_with_buffer(completion_promise, buffer));
+                         detail::read_write_handler_with_buffer( std::move(completion_promise), buffer));
     }
 
     namespace tcp {
@@ -249,10 +252,10 @@ namespace asio {
           */
         template<typename SocketType, typename AcceptorType>
         void accept( AcceptorType& acc, SocketType& sock ) {
-            promise<void>::ptr p = promise<void>::create("fc::asio::tcp::accept");
-            acc.async_accept( sock, boost::bind( fc::asio::detail::error_handler, p, _1 ) );
-            p->wait();
-            //if( ec ) BOOST_THROW_EXCEPTION( boost::system::system_error(ec) );
+            boost::fibers::promise<void> p;
+            auto f = p.get_future();
+            acc.async_accept( sock, boost::bind( fc::asio::detail::error_handler, std::move(p), _1 ) );
+            f.get();
         }
 
         /** @brief wraps boost::asio::socket::async_connect
@@ -261,10 +264,10 @@ namespace asio {
           */
         template<typename AsyncSocket, typename EndpointType>
         void connect( AsyncSocket& sock, const EndpointType& ep ) {
-            promise<void>::ptr p = promise<void>::create("fc::asio::tcp::connect");
-            sock.async_connect( ep, boost::bind( fc::asio::detail::error_handler, p, _1 ) );
-            p->wait();
-            //if( ec ) BOOST_THROW_EXCEPTION( boost::system::system_error(ec) );
+            boost::fibers::promise<void> p;
+            auto f = p.get_future();
+            sock.async_connect( ep, boost::bind( fc::asio::detail::error_handler, std::move(p), _1 ) );
+            f.get();
         }
     }
     namespace udp {
