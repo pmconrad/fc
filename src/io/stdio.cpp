@@ -5,6 +5,7 @@
 #include <fc/io/sstream.hpp>
 #include <fc/io/stdio.hpp>
 #include <fc/log/logger.hpp>
+#include <fc/thread/fibers.hpp>
 
 #include <condition_variable>
 #include <iostream>
@@ -16,7 +17,10 @@ namespace fc {
   class cin_buffer {
   public:
     cin_buffer() : eof(false), write_pos(0), read_pos(0) {
-       cinthread = boost::thread( [this] () { read(); } );
+       cinthread = boost::thread( [this] () {
+          set_thread_name("cin");
+          read();
+       } );
     }
 
     ~cin_buffer()

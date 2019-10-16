@@ -37,10 +37,18 @@ namespace fc {
     *  @return a future for the result of f()
     */
    template<typename Functor>
-   auto async( Functor&& f, boost::thread::id dest = boost::this_thread::get_id() )
+   auto async( Functor&& f, boost::thread::id dest = boost::this_thread::get_id(),
+               const std::string& name = std::string() )
          -> boost::fibers::future<decltype(f())> {
       typedef decltype(f()) Result;
-      boost::fibers::packaged_task<Result()> task( std::move(f) );
+      boost::fibers::packaged_task<Result()> task;
+      if( name.empty() )
+         task = boost::fibers::packaged_task<Result()>( std::move(f) );
+      else
+         task = boost::fibers::packaged_task<Result()>( [f=std::move(f),&name] () {
+            set_fiber_name( name );
+            return f();
+         });
       boost::fibers::future<Result> r = task.get_future();
       boost::fibers::fiber fib( std::move( task ) );
       if( dest != boost::this_thread::get_id())
@@ -54,11 +62,12 @@ namespace fc {
     */
    template<typename Functor, typename Clock, typename Duration>
    auto schedule( Functor&& f, std::chrono::time_point< Clock, Duration > const& t,
-                  boost::thread::id dest = boost::this_thread::get_id() ) -> boost::fibers::future<decltype(f())> {
+                  boost::thread::id dest = boost::this_thread::get_id(), const std::string name = std::string() )
+         -> boost::fibers::future<decltype(f())> {
       return async( [f=std::move(f), t] () {
          boost::this_fiber::sleep_until( t );
          return f();
-      }, dest );
+      }, dest, name );
    }
 
 }

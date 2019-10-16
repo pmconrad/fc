@@ -102,4 +102,10 @@ namespace fc {
 
       P parent;
    };
+
+   const std::string& get_thread_name();
+   void set_thread_name( const std::string& name );
+
+   const std::string& get_fiber_name();
+   void set_fiber_name( const std::string& name );
 } // fc

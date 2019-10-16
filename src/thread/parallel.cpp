@@ -69,7 +69,8 @@ namespace fc {
             std::atomic<uint32_t> ready{ 0 };
             for( uint32_t i = 0; i < num_threads; i++ )
             {
-               threads.emplace_back( [this,&ready] () {
+               threads.emplace_back( [this,&ready,i] () {
+                  set_thread_name( "pool worker #" + fc::to_string(i) );
                   boost::fibers::use_scheduling_algorithm< target_thread_scheduler< pool_scheduler > >( *this );
                   std::unique_lock< boost::fibers::mutex > lock( close_wait_mutex );
                   ready++;

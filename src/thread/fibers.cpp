@@ -25,7 +25,10 @@
 #include <fc/exception/exception.hpp>
 #include <fc/thread/fibers.hpp>
 
+#include <boost/fiber/fss.hpp>
+#include <boost/fiber/operations.hpp>
 #include <boost/lockfree/queue.hpp>
+#include <boost/thread/tss.hpp>
 
 #include <functional>
 #include <map>
@@ -162,5 +165,43 @@ namespace fc {
    {
       ready_queue.push( ctx );
       notify();
+   }
+
+   static boost::thread_specific_ptr<std::string> thread_name;
+   static boost::thread_specific_ptr<std::string> thread_id;
+   const std::string& get_thread_name()
+   {
+      if( thread_name.get() != nullptr ) return *thread_name.get();
+      if( thread_id.get() == nullptr )
+      {
+         std::stringstream tid;
+         tid << "thread #" << boost::this_thread::get_id();
+         thread_id.reset( new std::string( tid.str() ) );
+      }
+      return *thread_id.get();
+   }
+   void set_thread_name( const std::string& name )
+   {
+      FC_ASSERT( thread_name.get() == nullptr, "Thread name already set!" );
+      thread_name.reset( new std::string( name ) );
+   }
+
+   static boost::fibers::fiber_specific_ptr<std::string> fiber_name;
+   static boost::fibers::fiber_specific_ptr<std::string> fiber_id;
+   const std::string& get_fiber_name()
+   {
+      if( fiber_name.get() != nullptr ) return *fiber_name.get();
+      if( fiber_id.get() == nullptr )
+      {
+         std::stringstream tid;
+         tid << "fiber #" << boost::this_fiber::get_id();
+         fiber_id.reset( new std::string( tid.str() ) );
+      }
+      return *fiber_id.get();
+   }
+   void set_fiber_name( const std::string& name )
+   {
+      FC_ASSERT( fiber_name.get() == nullptr, "Fiber name already set!" );
+      fiber_name.reset( new std::string( name ) );
    }
 } // fc
