@@ -7,7 +7,6 @@
 
 #include <fc/log/logger.hpp>
 
-#include <fc/thread/thread.hpp>
 #include <fc/io/raw.hpp>
 #include <boost/endian/buffers.hpp>
 #include <boost/thread/mutex.hpp>
@@ -20,6 +19,8 @@
 #if defined(_WIN32)
 # include <windows.h>
 #endif
+
+#include <thread>
 
 namespace fc {
 
@@ -78,21 +79,6 @@ uint32_t aes_encoder::encode( const char* plaintxt, uint32_t plaintext_len, char
     FC_ASSERT( (uint32_t) ciphertext_len == plaintext_len, "", ("ciphertext_len",ciphertext_len)("plaintext_len",plaintext_len) );
     return ciphertext_len;
 }
-#if 0
-uint32_t aes_encoder::final_encode( char* ciphertxt )
-{
-    int ciphertext_len = 0;
-    /* Finalise the encryption. Further ciphertext bytes may be written at
-    *    * this stage.
-    *       */
-    if(1 != EVP_EncryptFinal_ex(my->ctx, (unsigned char*)ciphertxt, &ciphertext_len)) 
-    {
-        FC_THROW_EXCEPTION( exception, "error during aes 256 cbc encryption final", 
-                           ("s", ERR_error_string( ERR_get_error(), nullptr) ) );
-    }
-    return ciphertext_len;
-}
-#endif
 
 
 struct aes_decoder::impl 
@@ -408,7 +394,11 @@ unsigned long openssl_thread_config::get_thread_id()
 #ifdef _WIN32
   return (unsigned long)::GetCurrentThreadId();
 #else
-  return (unsigned long)(&fc::thread::current());    // TODO: should expose boost thread id
+  std::stringstream ss;
+  ss << std::hex << std::this_thread::get_id();
+  unsigned long result;
+  ss >> result;
+  return result;
 #endif
 }
 

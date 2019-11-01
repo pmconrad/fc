@@ -305,6 +305,8 @@ else()
   set( ZLIB_LIBRARIES "" )
 endif( ZLIB_FOUND )
 
+target_include_directories(fc PUBLIC vendor)
+
 # This will become unnecessary once we update to websocketpp which fixes upstream issue #395
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DWEBSOCKETPP_STRICT_MASKING")
 

@@ -2,14 +2,18 @@
 #include <fc/io/fstream.hpp>
 #include <fc/log/file_appender.hpp>
 #include <fc/reflect/variant.hpp>
-#include <fc/thread/scoped_lock.hpp>
-#include <fc/thread/thread.hpp>
+#include <fc/thread/async.hpp>
 #include <fc/variant.hpp>
-#include <boost/thread/mutex.hpp>
+
+#include <boost/fiber/condition_variable.hpp>
+#include <boost/fiber/mutex.hpp>
+
+#include <atomic>
 #include <iomanip>
+#include <iostream>
+#include <mutex>
 #include <queue>
 #include <sstream>
-#include <iostream>
 
 namespace fc {
 
@@ -18,11 +22,12 @@ namespace fc {
       public:
          config                     cfg;
          ofstream                   out;
-         boost::mutex               slock;
+         boost::fibers::mutex       slock;
+         boost::fibers::condition_variable wait;
+         bool                       cancelled = false;
 
       private:
-         future<void>               _deletion_task;
-         boost::atomic<int64_t>     _current_file_number;
+         std::atomic<int64_t>       _current_file_number;
          const int64_t              _interval_seconds;
          time_point                 _next_file_time;
 
@@ -39,7 +44,7 @@ namespace fc {
                   FC_ASSERT( cfg.rotation_limit >= cfg.rotation_interval );
 
                   rotate_files( true );
-                  delete_files();
+                  async( [this]() { delete_files(); }, boost::this_thread::get_id(), "delete_files" );
                } else {
                   out.open( cfg.filename, std::ios_base::out | std::ios_base::app);
                }
@@ -52,13 +57,9 @@ namespace fc {
 
          ~impl()
          {
-            try
-            {
-              _deletion_task.cancel_and_wait("file_appender is destructing");
-            }
-            catch( ... )
-            {
-            }
+            std::unique_lock<boost::fibers::mutex> lock( slock );
+            cancelled = true;
+            wait.notify_all();
          }
 
          void rotate_files( bool initializing = false )
@@ -84,7 +85,7 @@ namespace fc {
              fc::path log_filename = link_filename.parent_path() / (link_filename.filename().string() + "." + timestamp_string);
 
              {
-               fc::scoped_lock<boost::mutex> lock( slock );
+               std::unique_lock<boost::fibers::mutex> lock( slock );
 
                if( !initializing )
                {
@@ -99,6 +100,10 @@ namespace fc {
 
          void delete_files()
          {
+           std::unique_lock<boost::fibers::mutex> lock( slock );
+           while( !cancelled )
+           {
+             lock.unlock();
              /* Delete old log files */
              auto current_file = _current_file_number.load();
              fc::time_point_sec start_time = time_point_sec( (uint32_t)(current_file * _interval_seconds) );
@@ -125,16 +130,13 @@ namespace fc {
                         continue;
                      }
                  }
-                 catch (const fc::canceled_exception&)
-                 {
-                     throw;
-                 }
                  catch( ... )
                  {
                  }
              }
-             _deletion_task = schedule( [this]() { delete_files(); }, start_time + _interval_seconds,
-                                        "delete_files(3)" );
+             lock.lock();
+             wait.wait_until( lock, std::chrono::system_clock::from_time_t( (start_time + _interval_seconds).sec_since_epoch() ) );
+           }
          }
    };
 
@@ -180,7 +182,7 @@ namespace fc {
       line << message.c_str();
 
       {
-        fc::scoped_lock<boost::mutex> lock( my->slock );
+        std::unique_lock<boost::fibers::mutex> lock( my->slock );
         my->out << line.str() << "\t\t\t" << m.get_context().get_file() << ":" << m.get_context().get_line_number() << "\n";
         if( my->cfg.flush )
           my->out.flush();

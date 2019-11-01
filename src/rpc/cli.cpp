@@ -1,6 +1,8 @@
+#include <fc/io/iostream.hpp>
 #include <fc/io/json.hpp>
+#include <fc/io/stdio.hpp>
 #include <fc/rpc/cli.hpp>
-#include <fc/thread/fibers.hpp>
+#include <fc/thread/async.hpp>
 
 #include <iostream>
 
@@ -285,6 +287,7 @@ void cli::start()
    rl_set_getc_func(interruptible_getc);
 
    _editline_thread = boost::thread( [] () {
+      set_thread_name( "editline" );
       boost::fibers::use_scheduling_algorithm< target_thread_scheduler< boost::fibers::algo::round_robin > >();
       std::unique_lock<boost::fibers::mutex> lock( _mtx );
       _sema.wait( lock, [] () { return cli_quitting.load(); } );
@@ -300,7 +303,7 @@ void cli::cancel()
 {
    cli_quitting = true;
 #ifdef HAVE_EDITLINE
-   shutdown_editline( true );
+   _shutdown_editline( true );
 #endif
    _run_complete.wait();
 }

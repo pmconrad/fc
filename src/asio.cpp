@@ -10,48 +10,6 @@ namespace fc {
   namespace asio {
     namespace detail {
 
-      read_write_handler::read_write_handler( boost::fibers::promise<size_t>&& completion_promise )
-        : _completion_promise( std::move(completion_promise) )
-      {}
-      void read_write_handler::operator()(const boost::system::error_code& ec, size_t bytes_transferred)
-      {
-        if( !ec )
-          _completion_promise.set_value(bytes_transferred);
-        else if( ec == boost::asio::error::eof  )
-          _completion_promise.set_exception( std::make_exception_ptr( fc::eof_exception( FC_LOG_MESSAGE( error, "${message} ", ("message", boost::system::system_error(ec).what())) ) ) );
-        else
-          _completion_promise.set_exception( std::make_exception_ptr( fc::exception( FC_LOG_MESSAGE( error, "${message} ", ("message", boost::system::system_error(ec).what())) ) ) );
-      }
-      read_write_handler_with_buffer::read_write_handler_with_buffer( boost::fibers::promise<size_t>&& completion_promise,
-                                                                      const std::shared_ptr<const char>& buffer) :
-        _completion_promise( std::move(completion_promise) ),
-        _buffer(buffer)
-      {}
-      void read_write_handler_with_buffer::operator()(const boost::system::error_code& ec, size_t bytes_transferred)
-      {
-        if( !ec )
-          _completion_promise.set_value(bytes_transferred);
-        else if( ec == boost::asio::error::eof  )
-          _completion_promise.set_exception( std::make_exception_ptr( fc::eof_exception( FC_LOG_MESSAGE( error, "${message} ", ("message", boost::system::system_error(ec).what())) ) ) );
-        else
-          _completion_promise.set_exception( std::make_exception_ptr( fc::exception( FC_LOG_MESSAGE( error, "${message} ", ("message", boost::system::system_error(ec).what())) ) ) );
-      }
-
-        void error_handler( boost::fibers::promise<void>&& p, const boost::system::error_code& ec ) {
-            if( !ec )
-              p.set_value();
-            else if( ec == boost::asio::error::eof  )
-            {
-              p.set_exception( std::make_exception_ptr( fc::eof_exception(
-                          FC_LOG_MESSAGE( error, "${message} ", ("message", boost::system::system_error(ec).what())) ) ) );
-            }
-            else
-            {
-              p.set_exception( std::make_exception_ptr( fc::exception(
-                      FC_LOG_MESSAGE( error, "${message} ", ("message", boost::system::system_error(ec).what())) ) ) );
-            }
-        }
-
         template<typename EndpointType, typename IteratorType>
         void resolve_handler( std::shared_ptr< boost::fibers::promise<std::vector<EndpointType> > > p,
                               const boost::system::error_code& ec,
