@@ -1,8 +1,17 @@
 #include <boost/test/unit_test.hpp>
 
+#include <boost/fiber/operations.hpp>
+
 #include <fc/network/http/websocket.hpp>
 
+#include <chrono>
 #include <iostream>
+
+#include "../../thread/worker_thread.hxx"
+
+using namespace fc::test;
+
+BOOST_GLOBAL_FIXTURE( worker_thread_config );
 
 BOOST_AUTO_TEST_SUITE(fc_network)
 
@@ -31,14 +40,14 @@ BOOST_AUTO_TEST_CASE(websocket_test)
                     echo = s;
                 });
         c_conn->send_message( "hello world" );
-        fc::usleep( fc::milliseconds(100) );
+        boost::this_fiber::sleep_for( std::chrono::milliseconds(100) );
         BOOST_CHECK_EQUAL("echo: hello world", echo);
         c_conn->send_message( "again" );
-        fc::usleep( fc::milliseconds(100) );
+        boost::this_fiber::sleep_for( std::chrono::milliseconds(100) );
         BOOST_CHECK_EQUAL("echo: again", echo);
 
         s_conn->close(0, "test");
-        fc::usleep( fc::milliseconds(100) );
+        boost::this_fiber::sleep_for( std::chrono::milliseconds(100) );
         BOOST_CHECK_THROW(c_conn->send_message( "again" ), fc::exception);
 
         c_conn = client.connect( "ws://localhost:" + fc::to_string(port) );
@@ -46,7 +55,7 @@ BOOST_AUTO_TEST_CASE(websocket_test)
                     echo = s;
                 });
         c_conn->send_message( "hello world" );
-        fc::usleep( fc::milliseconds(100) );
+        boost::this_fiber::sleep_for( std::chrono::milliseconds(100) );
         BOOST_CHECK_EQUAL("echo: hello world", echo);
     }
 

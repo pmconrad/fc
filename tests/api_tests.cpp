@@ -1,5 +1,8 @@
 #include <boost/test/unit_test.hpp>
 
+#include <boost/chrono.hpp>
+#include <boost/thread/thread.hpp>
+
 #include <fc/api.hpp>
 #include <fc/io/json.hpp>
 #include <fc/log/logger.hpp>
@@ -95,7 +98,7 @@ BOOST_AUTO_TEST_CASE(login_test) {
 
       client->synchronous_close();
       server->close();
-      fc::usleep(fc::milliseconds(50));
+      boost::this_thread::sleep_for(boost::chrono::milliseconds(50));
       client.reset();
       server.reset();
    } FC_LOG_AND_RETHROW()
@@ -151,26 +154,26 @@ BOOST_AUTO_TEST_CASE(optionals_test) {
                 });
 
       con2->send_message( "{\"id\":1,\"method\":\"call\",\"params\":[0,\"bar\",[\"a\",\"b\",\"c\"]]}" );
-      fc::usleep(fc::milliseconds(50));
+      boost::this_thread::sleep_for(boost::chrono::milliseconds(50));
       BOOST_CHECK_EQUAL( response, "{\"id\":1,\"result\":\"[\\\"a\\\",\\\"b\\\",\\\"c\\\"]\"}" );
 
       con2->send_message( "{\"id\":2,\"method\":\"call\",\"params\":[0,\"bar\",[\"a\",\"b\"]]}" );
-      fc::usleep(fc::milliseconds(50));
+      boost::this_thread::sleep_for(boost::chrono::milliseconds(50));
       BOOST_CHECK_EQUAL( response, "{\"id\":2,\"result\":\"[\\\"a\\\",\\\"b\\\",null]\"}" );
 
       con2->send_message( "{\"id\":3,\"method\":\"call\",\"params\":[0,\"bar\",[\"a\"]]}" );
-      fc::usleep(fc::milliseconds(50));
+      boost::this_thread::sleep_for(boost::chrono::milliseconds(50));
       BOOST_CHECK_EQUAL( response, "{\"id\":3,\"result\":\"[\\\"a\\\",null,null]\"}" );
 
       con2->send_message( "{\"id\":4,\"method\":\"call\",\"params\":[0,\"bar\",[]]}" );
-      fc::usleep(fc::milliseconds(50));
+      boost::this_thread::sleep_for(boost::chrono::milliseconds(50));
       BOOST_CHECK_EQUAL( response, "{\"id\":4,\"result\":\"[null,null,null]\"}" );
 
       server->stop_listening();
 
       client->synchronous_close();
       server->close();
-      fc::usleep(fc::milliseconds(50));
+      boost::this_thread::sleep_for(boost::chrono::milliseconds(50));
       client.reset();
       server.reset();
    } FC_LOG_AND_RETHROW()

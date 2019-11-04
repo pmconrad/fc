@@ -45,7 +45,7 @@ namespace fc {
       if( name.empty() )
          task = boost::fibers::packaged_task<Result()>( std::move(f) );
       else
-         task = boost::fibers::packaged_task<Result()>( [f=std::move(f),&name] () {
+         task = boost::fibers::packaged_task<Result()>( [f=std::move(f),&name] () mutable {
             set_fiber_name( name );
             return f();
          });
