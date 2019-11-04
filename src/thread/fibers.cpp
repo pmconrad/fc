@@ -35,7 +35,6 @@
 
 namespace fc {
    namespace detail {
-      class dispatcher_impl;
       class dispatcher
       {
       public:
