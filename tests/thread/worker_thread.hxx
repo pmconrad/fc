@@ -12,6 +12,7 @@ class worker_thread
    boost::fibers::condition_variable _cv;
    boost::fibers::mutex _mtx;
    bool _shutdown = false;
+   bool _ready = false;
 
    public:
       worker_thread()
@@ -19,8 +20,13 @@ class worker_thread
          _thread = boost::thread( [this] () {
             init_rr_scheduler();
             std::unique_lock<boost::fibers::mutex> lock(_mtx);
+            _ready = true;
+            _cv.notify_all();
             _cv.wait( lock, [this] () { return _shutdown; } );
          });
+
+         std::unique_lock<boost::fibers::mutex> lock(_mtx);
+         _cv.wait( lock, [this] () { return _ready; } );
       }
       ~worker_thread()
       {

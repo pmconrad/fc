@@ -11,20 +11,19 @@
 
 using namespace fc::test;
 
-BOOST_GLOBAL_FIXTURE( worker_thread_config );
-
 BOOST_AUTO_TEST_SUITE(fc_network)
 
 BOOST_AUTO_TEST_CASE(websocket_test)
 { 
     fc::http::websocket_client client;
     fc::http::websocket_connection_ptr s_conn, c_conn;
+    init_rr_scheduler();
     int port;
     {
         fc::http::websocket_server server;
-        server.on_connection([&]( const fc::http::websocket_connection_ptr& c ){
+        server.on_connection([&s_conn]( const fc::http::websocket_connection_ptr& c ){
                 s_conn = c;
-                c->on_message_handler([&](const std::string& s){
+                c->on_message_handler([c](const std::string& s){
                     c->send_message("echo: " + s);
                 });
             });
@@ -36,7 +35,7 @@ BOOST_AUTO_TEST_CASE(websocket_test)
 
         std::string echo;
         c_conn = client.connect( "ws://localhost:" + fc::to_string(port) );
-        c_conn->on_message_handler([&](const std::string& s){
+        c_conn->on_message_handler([&echo](const std::string& s){
                     echo = s;
                 });
         c_conn->send_message( "hello world" );
@@ -51,7 +50,7 @@ BOOST_AUTO_TEST_CASE(websocket_test)
         BOOST_CHECK_THROW(c_conn->send_message( "again" ), fc::exception);
 
         c_conn = client.connect( "ws://localhost:" + fc::to_string(port) );
-        c_conn->on_message_handler([&](const std::string& s){
+        c_conn->on_message_handler([&echo](const std::string& s){
                     echo = s;
                 });
         c_conn->send_message( "hello world" );
