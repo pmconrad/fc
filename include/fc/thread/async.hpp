@@ -25,6 +25,7 @@
 #pragma once
 
 #include <fc/thread/fibers.hpp>
+
 #include <boost/fiber/future/future.hpp>
 #include <boost/fiber/future/promise.hpp>
 #include <boost/fiber/future/packaged_task.hpp>
@@ -51,8 +52,8 @@ namespace fc {
          });
       boost::fibers::future<Result> r = task.get_future();
       boost::fibers::fiber fib( std::move( task ) );
-      if( dest != boost::this_thread::get_id())
-         fib.properties< target_thread_properties >().set_target_thread( dest );
+      if( dest != boost::this_thread::get_id() )
+         target_thread_scheduler_base::move_fiber( fib, dest );
       fib.detach();
       return r;
    }

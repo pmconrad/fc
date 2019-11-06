@@ -96,7 +96,7 @@ namespace fc {
 
          void post( boost::fibers::fiber&& fiber )
          {
-            fiber.properties< target_thread_properties >().set_target_thread( threads[0].get_id() );
+            target_thread_scheduler_base::move_fiber( fiber, threads[0].get_id() );
             fiber.detach();
          }
 

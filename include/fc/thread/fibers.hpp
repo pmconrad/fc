@@ -33,26 +33,13 @@
 
 namespace fc {
 
-   class target_thread_properties : public boost::fibers::fiber_properties {
-   public:
-      target_thread_properties( boost::fibers::context *ctx );
-      virtual ~target_thread_properties() = default;
-
-      bool has_target_thread()const;
-      boost::thread::id get_target_thread()const;
-      void set_target_thread( boost::thread::id id );
-   private:
-      boost::thread::id target_thread;
-   };
-
-   class target_thread_scheduler_base
-      : public boost::fibers::algo::algorithm_with_properties<target_thread_properties>
+   class target_thread_scheduler_base : public boost::fibers::algo::algorithm
    {
    public:
       target_thread_scheduler_base();
       virtual ~target_thread_scheduler_base();
 
-      virtual void awakened( boost::fibers::context* ctx, target_thread_properties& props ) noexcept;
+      virtual void awakened( boost::fibers::context* ctx ) noexcept;
       virtual boost::fibers::context* pick_next() noexcept;
       virtual bool has_ready_fibers() const noexcept;
       virtual void suspend_until( const std::chrono::steady_clock::time_point& then ) noexcept;
@@ -60,10 +47,7 @@ namespace fc {
 
       void add_fiber( boost::fibers::context* ctx )noexcept;
 
-      // TODO: override with something that allows to free() props again
-      //virtual fiber_properties * new_properties( context * ctx) {
-      //   return new PROPS( ctx);
-      //}
+      static void move_fiber( const boost::fibers::fiber& fiber, const boost::thread::id dest );
 
    private:
       virtual boost::fibers::algo::algorithm& get_delegate()noexcept = 0;

@@ -65,33 +65,34 @@ namespace fc {
             threads[dest]->add_fiber( ctx );
          }
 
+         bool check_migrate( boost::fibers::context* ctx )noexcept
+         {
+            std::unique_lock<std::mutex> lock( threads_mutex );
+            auto dest = migrations.find( ctx->get_id() );
+            if( dest == migrations.end() ) return false;
+            boost::thread::id dest_id = dest->second;
+            migrations.erase( ctx->get_id() );
+            lock.unlock();
+
+            migrate_context( ctx, dest_id );
+            return true;
+         }
+
+         void set_fiber_destination( boost::fibers::fiber::id fiber, boost::thread::id dest )
+         {
+            std::unique_lock<std::mutex> lock( threads_mutex );
+            FC_ASSERT( threads.find( dest ) != threads.end(), "Target thread not found!?" );
+            migrations[fiber] = dest;
+         }
+
          friend class fc::target_thread_scheduler_base;
 
          std::mutex threads_mutex;
          std::map< boost::thread::id, target_thread_scheduler_base* > threads;
+         std::map< boost::fibers::fiber::id, boost::thread::id > migrations;
       };
 
       dispatcher _global_dispatcher;
-   }
-
-   target_thread_properties::target_thread_properties( boost::fibers::context *ctx )
-      : boost::fibers::fiber_properties( ctx )
-   {
-   }
-
-   bool target_thread_properties::has_target_thread()const
-   {
-      return target_thread != boost::thread::id();
-   }
-
-   boost::thread::id target_thread_properties::get_target_thread()const
-   {
-      return target_thread;
-   }
-
-   void target_thread_properties::set_target_thread( boost::thread::id id )
-   {
-      target_thread = id;
    }
 
    target_thread_scheduler_base::target_thread_scheduler_base()
@@ -104,33 +105,18 @@ namespace fc {
       detail::_global_dispatcher.delist();
    }
 
-   void target_thread_scheduler_base::awakened( boost::fibers::context* ctx,
-                                                target_thread_properties& props ) noexcept
+   void target_thread_scheduler_base::awakened( boost::fibers::context* ctx ) noexcept
    {
-      const boost::thread::id target = props.get_target_thread();
-      if( target == boost::thread::id() || target == boost::this_thread::get_id() )
+      if( !detail::_global_dispatcher.check_migrate( ctx ) )
          get_delegate().awakened( ctx );
-      else
-         detail::_global_dispatcher.migrate_context( ctx, target );
    }
 
    boost::fibers::context* target_thread_scheduler_base::pick_next() noexcept
    {
       requeue();
       boost::fibers::context* ctx = get_delegate().pick_next();
-      if( !ctx ) return ctx;
-      target_thread_properties* props = dynamic_cast<target_thread_properties*>( get_properties( ctx ) );
-      if( !props ) return ctx;
-      boost::thread::id target = props->get_target_thread();
-      while( ctx && target != boost::thread::id() && target != boost::this_thread::get_id() )
-      {
-         detail::_global_dispatcher.migrate_context( ctx, target );
+      while( ctx && detail::_global_dispatcher.check_migrate( ctx ) )
          ctx = get_delegate().pick_next();
-         if( !ctx ) break;
-         target_thread_properties* props = dynamic_cast<target_thread_properties*>( get_properties( ctx ) );
-         if( !props ) break;
-         target = props->get_target_thread();
-      }
       return ctx;
    }
 
@@ -156,7 +142,7 @@ namespace fc {
       for( const auto ctx : tmp )
       {
          boost::fibers::context::active()->attach( ctx );
-         awakened( ctx, *dynamic_cast<target_thread_properties*>( get_properties( ctx ) ) );
+         awakened( ctx );
       }
    }
    
@@ -164,6 +150,11 @@ namespace fc {
    {
       ready_queue.push( ctx );
       notify();
+   }
+
+   void target_thread_scheduler_base::move_fiber( const boost::fibers::fiber& fiber, const boost::thread::id dest )
+   {
+      detail::_global_dispatcher.set_fiber_destination( fiber.get_id(), dest );
    }
 
    static boost::thread_specific_ptr<std::string> thread_name;
