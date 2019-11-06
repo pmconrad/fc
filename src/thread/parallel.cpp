@@ -85,12 +85,8 @@ namespace fc {
          pool_impl( pool_impl&& move ) = delete;
          ~pool_impl() 
          {
-            {
-               std::unique_lock< boost::fibers::mutex > lock( close_wait_mutex );
-               closing = true;
-               close_wait.notify_all();
-            }
-
+            closing = true;
+            close_wait.notify_all();
             for( boost::thread& thread : threads ) thread.join();
          }
 
