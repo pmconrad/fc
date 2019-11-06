@@ -27,6 +27,7 @@
 
 #include <boost/fiber/fss.hpp>
 #include <boost/fiber/operations.hpp>
+#include <boost/fiber/algo/round_robin.hpp>
 #include <boost/lockfree/queue.hpp>
 #include <boost/thread/tss.hpp>
 
@@ -193,5 +194,10 @@ namespace fc {
    {
       FC_ASSERT( fiber_name.get() == nullptr, "Fiber name already set!" );
       fiber_name.reset( new std::string( name ) );
+   }
+
+   void initialize_fibers()
+   {
+      boost::fibers::use_scheduling_algorithm< fc::target_thread_scheduler< boost::fibers::algo::round_robin > >();
    }
 } // fc

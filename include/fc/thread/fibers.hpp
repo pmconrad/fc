@@ -87,6 +87,8 @@ namespace fc {
       P parent;
    };
 
+   void initialize_fibers();
+
    const std::string& get_thread_name();
    void set_thread_name( const std::string& name );
 
