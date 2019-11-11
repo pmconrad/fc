@@ -1,8 +1,6 @@
 
 #include <boost/test/unit_test.hpp>
 
-#include <boost/fiber/algo/round_robin.hpp>
-
 #include <boost/thread/tss.hpp>
 
 #include <fc/thread/async.hpp>
@@ -19,7 +17,7 @@ void fc::test::init_rr_scheduler()
    static bool dummy;
    if( is_initialized.get() ) { return; }
    is_initialized.reset( &dummy );
-   boost::fibers::use_scheduling_algorithm< fc::target_thread_scheduler< boost::fibers::algo::round_robin > >();
+   initialize_fibers();
 }
 
 BOOST_GLOBAL_FIXTURE( worker_thread_config );
