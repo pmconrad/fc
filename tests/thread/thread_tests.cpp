@@ -11,17 +11,6 @@
 using namespace fc;
 using namespace fc::test;
 
-boost::thread_specific_ptr<bool> is_initialized( [] ( bool* v ) { v = nullptr; } );
-void fc::test::init_rr_scheduler()
-{
-   static bool dummy;
-   if( is_initialized.get() ) { return; }
-   is_initialized.reset( &dummy );
-   initialize_fibers();
-}
-
-BOOST_GLOBAL_FIXTURE( worker_thread_config );
-
 BOOST_AUTO_TEST_SUITE(thread_tests)
 
 BOOST_AUTO_TEST_CASE(executes_task)

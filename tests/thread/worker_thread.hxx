@@ -4,8 +4,6 @@
 
 namespace fc { namespace test {
 
-void init_rr_scheduler();
-
 class worker_thread
 {
    boost::thread _thread;
@@ -18,7 +16,7 @@ class worker_thread
       worker_thread()
       {
          _thread = boost::thread( [this] () {
-            init_rr_scheduler();
+            initialize_fibers();
             std::unique_lock<boost::fibers::mutex> lock(_mtx);
             _ready = true;
             _cv.notify_all();
@@ -37,12 +35,6 @@ class worker_thread
          _thread.join();
       }
       boost::thread::id id() { return _thread.get_id(); }
-};
-
-struct worker_thread_config {
-  worker_thread_config() {
-     init_rr_scheduler();
-  }
 };
 
 }} // fc::test

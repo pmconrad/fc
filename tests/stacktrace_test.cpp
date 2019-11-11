@@ -30,7 +30,6 @@ BOOST_AUTO_TEST_CASE(stacktrace_test)
 
 BOOST_AUTO_TEST_CASE(threaded_stacktrace_test)
 {
-   fc::test::worker_thread_config cfg;
    fc::test::worker_thread test_thread;
    std::string results = fc::async(
          [] ()->std::string {

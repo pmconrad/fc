@@ -40,11 +40,9 @@
 #include <chrono>
 #include <iostream>
 
-#include "worker_thread.hxx"
-
 namespace fc { namespace test {
 
-struct thread_config : worker_thread_config {
+struct thread_config {
   thread_config() {
      for( int i = 0; i < boost::unit_test::framework::master_test_suite().argc - 1; ++i )
         if( !strcmp( boost::unit_test::framework::master_test_suite().argv[i], "--pool-threads" ) )
