@@ -66,7 +66,6 @@ namespace fc {
        for( uint16_t i = 0; i < num_io_threads; ++i )
        {
           asio_threads.emplace_back( [i,this]() {
-             initialize_fibers();
              set_thread_name( "fc::asio worker #" + fc::to_string(i) );
                  while (!io->stopped())
                  {

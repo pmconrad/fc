@@ -82,6 +82,12 @@ namespace fc {
          void set_fiber_destination( boost::fibers::fiber::id fiber, boost::thread::id dest )
          {
             std::unique_lock<std::mutex> lock( threads_mutex );
+            if( threads.find( boost::this_thread::get_id() ) == threads.end() )
+            {
+               lock.unlock();
+               boost::fibers::use_scheduling_algorithm< fc::target_thread_scheduler< boost::fibers::algo::round_robin > >();
+               lock.lock();
+            }
             FC_ASSERT( threads.find( dest ) != threads.end(), "Target thread not found!?" );
             migrations[fiber] = dest;
          }

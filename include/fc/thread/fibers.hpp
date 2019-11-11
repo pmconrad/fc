@@ -87,6 +87,9 @@ namespace fc {
       P parent;
    };
 
+   /** A thread that wants to be able to work on fibers delegated by some other thread must call this exactly
+    *  once.
+    */
    void initialize_fibers();
 
    const std::string& get_thread_name();
