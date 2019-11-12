@@ -10,6 +10,8 @@
 #include <fc/rpc/websocket_api.hpp>
 #include <fc/thread/fibers.hpp>
 
+#include "thread/worker_thread.hxx"
+
 namespace fc { namespace test {
 
 class calculator
@@ -54,20 +56,6 @@ class some_calculator
       void    on_result( const std::function<void(int32_t)>& cb ) { wlog( "set callback" ); _cb = cb;  return ; }
       void    on_result2(  const std::function<void(int32_t)>& cb, int test ){}
       std::function<void(int32_t)> _cb;
-};
-
-class sync_point
-{
-   bool is_set = false;
-   boost::fibers::mutex mtx;
-   boost::fibers::condition_variable cv;
-public:
-   void reset() { is_set = false; }
-   void set() { is_set = true; cv.notify_all(); }
-   void wait() {
-      std::unique_lock<boost::fibers::mutex> lock(mtx);
-      cv.wait( lock, [this] () { return is_set; } );
-   }
 };
 
 }} // fc::test

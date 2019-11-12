@@ -37,4 +37,18 @@ class worker_thread
       boost::thread::id id() { return _thread.get_id(); }
 };
 
+class sync_point
+{
+   bool is_set = false;
+   boost::fibers::mutex mtx;
+   boost::fibers::condition_variable cv;
+public:
+   void reset() { is_set = false; }
+   void set() { is_set = true; cv.notify_all(); }
+   void wait() {
+      std::unique_lock<boost::fibers::mutex> lock(mtx);
+      cv.wait( lock, [this] () { return is_set; } );
+   }
+};
+
 }} // fc::test
