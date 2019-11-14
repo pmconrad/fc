@@ -58,10 +58,7 @@ namespace fc {
 
          ~impl()
          {
-            std::unique_lock<boost::fibers::mutex> lock( slock );
             cancelled = true;
-            wait.notify_all();
-            lock.unlock();
             if( _deleter.joinable() ) _deleter.join();
          }
 

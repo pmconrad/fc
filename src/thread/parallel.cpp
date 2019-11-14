@@ -75,7 +75,9 @@ namespace fc {
                   std::unique_lock< boost::fibers::mutex > lock( close_wait_mutex );
                   ready++;
                   close_wait.notify_all();
-                  close_wait.wait( lock, [this] () { return closing; } );
+                  lock.unlock();
+                  while( !closing )
+                     boost::this_fiber::sleep_for( std::chrono::seconds(3) );
                } );
             }
             std::unique_lock< boost::fibers::mutex > lock( close_wait_mutex );
@@ -86,7 +88,6 @@ namespace fc {
          ~pool_impl() 
          {
             closing = true;
-            close_wait.notify_all();
             for( boost::thread& thread : threads ) thread.join();
          }
 
