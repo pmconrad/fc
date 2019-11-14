@@ -2,13 +2,13 @@
 #include <fc/io/fstream.hpp>
 #include <fc/log/file_appender.hpp>
 #include <fc/reflect/variant.hpp>
-#include <fc/thread/async.hpp>
 #include <fc/variant.hpp>
 
 #include <boost/fiber/condition_variable.hpp>
 #include <boost/fiber/mutex.hpp>
 
 #include <atomic>
+#include <future>
 #include <iomanip>
 #include <iostream>
 #include <mutex>
@@ -30,6 +30,7 @@ namespace fc {
          std::atomic<int64_t>       _current_file_number;
          const int64_t              _interval_seconds;
          time_point                 _next_file_time;
+         std::thread                _deleter;
 
       public:
          impl( const config& c) : cfg( c ), _interval_seconds( cfg.rotation_interval.to_seconds() )
@@ -44,7 +45,7 @@ namespace fc {
                   FC_ASSERT( cfg.rotation_limit >= cfg.rotation_interval );
 
                   rotate_files( true );
-                  async( [this]() { delete_files(); }, boost::this_thread::get_id(), "delete_files" );
+                  _deleter = std::thread( [this]() { delete_files(); } );
                } else {
                   out.open( cfg.filename, std::ios_base::out | std::ios_base::app);
                }
@@ -60,6 +61,8 @@ namespace fc {
             std::unique_lock<boost::fibers::mutex> lock( slock );
             cancelled = true;
             wait.notify_all();
+            lock.unlock();
+            if( _deleter.joinable() ) _deleter.join();
          }
 
          void rotate_files( bool initializing = false )
@@ -135,7 +138,10 @@ namespace fc {
                  }
              }
              lock.lock();
-             wait.wait_until( lock, std::chrono::system_clock::from_time_t( (start_time + _interval_seconds).sec_since_epoch() ) );
+             const auto then = (start_time + _interval_seconds).sec_since_epoch();
+             auto now = then;
+             while( (now = time_point::now().sec_since_epoch()) < then && !cancelled )
+                wait.wait_until( lock, std::chrono::system_clock::from_time_t( now < then - 5 ? now + 5 : then ) );
            }
          }
    };
@@ -148,7 +154,7 @@ namespace fc {
    {}
 
    file_appender::file_appender( const variant& args ) :
-     my( new impl( args.as<config>( FC_MAX_LOG_OBJECT_DEPTH ) ) )
+     my( std::make_unique<impl>( args.as<config>( FC_MAX_LOG_OBJECT_DEPTH ) ) )
    {}
 
    file_appender::~file_appender(){}
