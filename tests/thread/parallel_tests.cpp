@@ -113,14 +113,24 @@ BOOST_AUTO_TEST_CASE( do_something_parallel )
    struct result {
       std::thread::id thread_id;
       int             call_count;
+      unsigned char   dummy;
    };
 
    std::vector<boost::fibers::future<result>> results;
    results.reserve( 20 );
-   thread_local int tls;
+   std::mutex mtx;
+   std::map<std::thread::id,int> per_thread_counter;
    for( size_t i = 0; i < results.capacity(); i++ )
-      results.emplace_back( fc::do_parallel( [&tls] () {
-         result res = { std::this_thread::get_id(), tls++ };
+      results.emplace_back( fc::do_parallel( [&mtx,&per_thread_counter] () {
+         int count;
+         {
+            std::unique_lock<std::mutex> lock(mtx);
+            if( per_thread_counter.find( std::this_thread::get_id() ) == per_thread_counter.end() )
+               count = per_thread_counter[std::this_thread::get_id()] = 0;
+            else
+               count = ++per_thread_counter[std::this_thread::get_id()];
+         }
+         result res = { std::this_thread::get_id(), count, 0 };
          return res;
       } ) );
 

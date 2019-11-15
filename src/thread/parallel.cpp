@@ -52,9 +52,6 @@ namespace fc {
 
       private:
          pool_impl&              _pool;
-         std::condition_variable suspender;
-         std::mutex              suspend_mutex;
-         boost::fibers::context* dispatcher = nullptr;
          std::queue<boost::fibers::context*> pinned;
       };
 
@@ -103,6 +100,8 @@ namespace fc {
          boost::fibers::mutex              close_wait_mutex;
 
          boost::lockfree::queue<boost::fibers::context*> ready_queue{200};
+         std::condition_variable suspender;
+         std::mutex              suspend_mutex;
 
          friend class pool_scheduler;
       };
@@ -111,15 +110,12 @@ namespace fc {
       void pool_scheduler::awakened( boost::fibers::context* ctx ) noexcept
       {
          if( ctx->is_context( boost::fibers::type::pinned_context ) )
-         {
             pinned.push( ctx );
-            if( ctx->is_context( boost::fibers::type::dispatcher_context ) )
-               dispatcher = ctx;
-         }
          else
          {
             ctx->detach();
             _pool.ready_queue.push( ctx );
+            _pool.suspender.notify_one();
          }
       }
 
@@ -146,17 +142,16 @@ namespace fc {
 
       void pool_scheduler::suspend_until( const std::chrono::steady_clock::time_point& then ) noexcept
       {
-         std::unique_lock< std::mutex > lock( suspend_mutex );
+         std::unique_lock< std::mutex > lock( _pool.suspend_mutex );
          if( then == std::chrono::steady_clock::time_point::max() )
-            suspender.wait( lock );
+            _pool.suspender.wait( lock );
          else
-            suspender.wait_until( lock, then );
+            _pool.suspender.wait_until( lock, then );
       }
 
       void pool_scheduler::notify() noexcept
       {
-         std::unique_lock< std::mutex > lock( suspend_mutex );
-         suspender.notify_all();
+         _pool.suspender.notify_all();
       }
 
 
