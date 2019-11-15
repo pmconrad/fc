@@ -19,7 +19,6 @@
 #endif
 
 #include <boost/fiber/algo/round_robin.hpp>
-#include <boost/thread/thread.hpp>
 #include <boost/regex.hpp>
 
 namespace fc { namespace rpc {
@@ -46,7 +45,7 @@ static std::atomic<bool> cli_quitting{ false };
 static std::atomic<bool> cli_running{ false };
 
 #ifdef HAVE_EDITLINE
-boost::thread _editline_thread;
+std::thread _editline_thread;
 boost::fibers::condition_variable _sema;
 boost::fibers::mutex _mtx;
 
@@ -286,9 +285,9 @@ void cli::start()
    rl_set_list_possib_func(cli_completion);
    rl_set_getc_func(interruptible_getc);
 
-   _editline_thread = boost::thread( [] () {
+   _editline_thread = std::thread( [] () {
       set_thread_name( "editline" );
-      boost::fibers::use_scheduling_algorithm< target_thread_scheduler< boost::fibers::algo::round_robin > >();
+      initialize_fibers();
       std::unique_lock<boost::fibers::mutex> lock( _mtx );
       _sema.wait( lock, [] () { return cli_quitting.load(); } );
    });

@@ -3,7 +3,9 @@
 #include <fc/exception/exception.hpp>
 #include <fc/thread/fibers.hpp>
 #include <boost/scope_exit.hpp>
+
 #include <algorithm>
+#include <functional>
 #include <thread>
 
 namespace fc {
@@ -59,7 +61,7 @@ namespace fc {
        {
           // the default was not set by the configuration. Determine a good
           // number of threads. Minimum of 8, maximum of hardware_concurrency
-          num_io_threads = std::max( boost::thread::hardware_concurrency(), 8U );
+          num_io_threads = std::max( std::thread::hardware_concurrency(), 8U );
        }
 
        asio_threads.reserve( num_io_threads );
@@ -123,8 +125,8 @@ namespace fc {
           p = std::make_shared< boost::fibers::promise<std::vector<boost::asio::ip::tcp::endpoint> > >();
           auto f = p->get_future();
           res.async_resolve( boost::asio::ip::tcp::resolver::query(hostname,port),
-                             boost::bind( detail::resolve_handler<boost::asio::ip::tcp::endpoint,resolver_iterator>,
-                                          p, _1, _2 ) );
+                             std::bind( detail::resolve_handler<boost::asio::ip::tcp::endpoint,resolver_iterator>,
+                                        p, std::placeholders::_1, std::placeholders::_2 ) );
           return f.get();
         }
         FC_RETHROW_EXCEPTIONS(warn, "")
@@ -140,7 +142,8 @@ namespace fc {
           p = std::make_shared< boost::fibers::promise<std::vector<endpoint> > >();
           auto f = p->get_future();
           res.async_resolve( resolver::query(hostname,port),
-                             boost::bind( detail::resolve_handler<endpoint,resolver_iterator>, p, _1, _2 ) );
+                             std::bind( detail::resolve_handler<endpoint,resolver_iterator>,
+                                        p, std::placeholders::_1, std::placeholders::_2 ) );
           return f.get();
         }
         FC_RETHROW_EXCEPTIONS(warn, "")

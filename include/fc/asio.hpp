@@ -4,7 +4,6 @@
  */
 #pragma once
 #include <boost/asio.hpp>
-#include <boost/thread.hpp>
 #include <boost/fiber/asio/yield.hpp>
 
 #include <vector>
@@ -50,7 +49,7 @@ namespace asio {
           static uint16_t get_num_threads();
           boost::asio::io_service*          io;
        private:
-          std::vector<boost::thread>        asio_threads;
+          std::vector<std::thread>          asio_threads;
           boost::asio::io_service::work*    the_work;
        protected:
           static uint16_t num_io_threads; // marked protected to help with testing

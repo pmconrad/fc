@@ -27,9 +27,9 @@
 #include <boost/fiber/algo/algorithm.hpp>
 #include <boost/fiber/fiber.hpp>
 #include <boost/lockfree/queue.hpp>
-#include <boost/thread/thread.hpp>
 
 #include <memory>
+#include <thread>
 
 namespace fc {
 
@@ -47,7 +47,7 @@ namespace fc {
 
       void add_fiber( boost::fibers::context* ctx )noexcept;
 
-      static void move_fiber( const boost::fibers::fiber& fiber, const boost::thread::id dest );
+      static void move_fiber( const boost::fibers::fiber& fiber, const std::thread::id dest );
 
    private:
       virtual boost::fibers::algo::algorithm& get_delegate()noexcept = 0;

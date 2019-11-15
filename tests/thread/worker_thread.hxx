@@ -6,7 +6,7 @@ namespace fc { namespace test {
 
 class worker_thread
 {
-   boost::thread _thread;
+   std::thread _thread;
    boost::fibers::condition_variable _cv;
    boost::fibers::mutex _mtx;
    bool _shutdown = false;
@@ -15,7 +15,7 @@ class worker_thread
    public:
       worker_thread()
       {
-         _thread = boost::thread( [this] () {
+         _thread = std::thread( [this] () {
             initialize_fibers();
             std::unique_lock<boost::fibers::mutex> lock(_mtx);
             _ready = true;
@@ -34,7 +34,7 @@ class worker_thread
          lock.unlock();
          _thread.join();
       }
-      boost::thread::id id() { return _thread.get_id(); }
+      std::thread::id id() { return _thread.get_id(); }
 };
 
 class sync_point

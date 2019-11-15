@@ -1,8 +1,5 @@
 #include <boost/test/unit_test.hpp>
 
-#include <boost/chrono.hpp>
-#include <boost/thread/thread.hpp>
-
 #include <fc/api.hpp>
 #include <fc/io/json.hpp>
 #include <fc/log/logger.hpp>

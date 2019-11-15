@@ -1,8 +1,6 @@
 
 #include <boost/test/unit_test.hpp>
 
-#include <boost/thread/tss.hpp>
-
 #include <fc/thread/async.hpp>
 #include <fc/thread/fibers.hpp>
 

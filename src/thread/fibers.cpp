@@ -29,7 +29,6 @@
 #include <boost/fiber/operations.hpp>
 #include <boost/fiber/algo/round_robin.hpp>
 #include <boost/lockfree/queue.hpp>
-#include <boost/thread/tss.hpp>
 
 #include <functional>
 #include <map>
@@ -44,7 +43,7 @@ namespace fc {
       private:
          void enlist( target_thread_scheduler_base* scheduler )
          {
-            const auto tid = boost::this_thread::get_id();
+            const auto tid = std::this_thread::get_id();
             std::unique_lock<std::mutex> lock( threads_mutex );
             FC_ASSERT( threads.find( tid ) == threads.end(), "Trying to enlist an already registered thread?!" );
             threads[tid] = scheduler;
@@ -52,13 +51,13 @@ namespace fc {
 
          void delist()
          {
-            const auto tid = boost::this_thread::get_id();
+            const auto tid = std::this_thread::get_id();
             std::unique_lock<std::mutex> lock( threads_mutex );
             FC_ASSERT( threads.find( tid ) != threads.end(), "Trying to delist an unlisted thread?!" );
             threads.erase( tid );
          }
 
-         void migrate_context( boost::fibers::context* ctx, boost::thread::id dest )noexcept
+         void migrate_context( boost::fibers::context* ctx, std::thread::id dest )noexcept
          {
             std::unique_lock<std::mutex> lock( threads_mutex );
             if( threads.find( dest ) == threads.end() ) return; // fiber stays in this thread
@@ -71,7 +70,7 @@ namespace fc {
             std::unique_lock<std::mutex> lock( threads_mutex );
             auto dest = migrations.find( ctx->get_id() );
             if( dest == migrations.end() ) return false;
-            boost::thread::id dest_id = dest->second;
+            std::thread::id dest_id = dest->second;
             migrations.erase( ctx->get_id() );
             lock.unlock();
 
@@ -79,7 +78,7 @@ namespace fc {
             return true;
          }
 
-         void set_fiber_destination( boost::fibers::fiber::id fiber, boost::thread::id dest )
+         void set_fiber_destination( boost::fibers::fiber::id fiber, std::thread::id dest )
          {
             initialize_thread();
             std::unique_lock<std::mutex> lock( threads_mutex );
@@ -90,14 +89,14 @@ namespace fc {
          friend class fc::target_thread_scheduler_base;
 
          std::mutex threads_mutex;
-         std::map< boost::thread::id, target_thread_scheduler_base* > threads;
-         std::map< boost::fibers::fiber::id, boost::thread::id > migrations;
+         std::map< std::thread::id, target_thread_scheduler_base* > threads;
+         std::map< boost::fibers::fiber::id, std::thread::id > migrations;
 
       public:
          void initialize_thread()
          {
             std::unique_lock<std::mutex> lock( threads_mutex );
-            if( threads.find( boost::this_thread::get_id() ) == threads.end() )
+            if( threads.find( std::this_thread::get_id() ) == threads.end() )
             {
                lock.unlock();
                boost::fibers::use_scheduling_algorithm< fc::target_thread_scheduler< boost::fibers::algo::round_robin > >();
@@ -165,28 +164,28 @@ namespace fc {
       notify();
    }
 
-   void target_thread_scheduler_base::move_fiber( const boost::fibers::fiber& fiber, const boost::thread::id dest )
+   void target_thread_scheduler_base::move_fiber( const boost::fibers::fiber& fiber, const std::thread::id dest )
    {
       detail::_global_dispatcher.set_fiber_destination( fiber.get_id(), dest );
    }
 
-   static boost::thread_specific_ptr<std::string> thread_name;
-   static boost::thread_specific_ptr<std::string> thread_id;
+   static thread_local std::string thread_name;
+   static thread_local std::string thread_id;
    const std::string& get_thread_name()
    {
-      if( thread_name.get() != nullptr ) return *thread_name.get();
-      if( thread_id.get() == nullptr )
+      if( !thread_name.empty() ) return thread_name;
+      if( thread_id.empty() )
       {
          std::stringstream tid;
-         tid << "thread #" << boost::this_thread::get_id();
-         thread_id.reset( new std::string( tid.str() ) );
+         tid << "thread #" << std::this_thread::get_id();
+         thread_id = tid.str();
       }
-      return *thread_id.get();
+      return thread_id;
    }
    void set_thread_name( const std::string& name )
    {
-      FC_ASSERT( thread_name.get() == nullptr, "Thread name already set!" );
-      thread_name.reset( new std::string( name ) );
+      FC_ASSERT( thread_name.empty(), "Thread name already set!" );
+      thread_name = name;
    }
 
    static boost::fibers::fiber_specific_ptr<std::string> fiber_name;

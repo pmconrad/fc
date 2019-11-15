@@ -29,7 +29,6 @@
 
 #include <boost/fiber/algo/round_robin.hpp>
 #include <boost/lockfree/queue.hpp>
-#include <boost/thread/thread.hpp>
 
 #include <atomic>
 #include <queue>
@@ -88,7 +87,7 @@ namespace fc {
          ~pool_impl() 
          {
             closing = true;
-            for( boost::thread& thread : threads ) thread.join();
+            for( std::thread& thread : threads ) thread.join();
          }
 
          void post( boost::fibers::fiber&& fiber )
@@ -98,7 +97,7 @@ namespace fc {
          }
 
       private:
-         std::vector<boost::thread>        threads;
+         std::vector<std::thread>          threads;
          bool                              closing = false;
          boost::fibers::condition_variable close_wait;
          boost::fibers::mutex              close_wait_mutex;

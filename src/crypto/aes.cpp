@@ -9,7 +9,6 @@
 
 #include <fc/io/raw.hpp>
 #include <boost/endian/buffers.hpp>
-#include <boost/thread/mutex.hpp>
 #include <openssl/opensslconf.h>
 #ifndef OPENSSL_THREADS
 # error "OpenSSL must be configured to support threads"
@@ -20,6 +19,7 @@
 # include <windows.h>
 #endif
 
+#include <mutex>
 #include <thread>
 
 namespace fc {
@@ -379,7 +379,7 @@ std::vector<char> aes_load( const fc::path& file, const fc::sha512& key )
 */
 struct openssl_thread_config
 {
-  static boost::mutex* openssl_mutexes;
+  static std::vector<std::mutex> openssl_mutexes;
   static unsigned long get_thread_id();
   static void locking_callback(int mode, int type, const char *file, int line);
   openssl_thread_config();
@@ -387,7 +387,7 @@ struct openssl_thread_config
 };
 openssl_thread_config openssl_thread_config_manager;
 
-boost::mutex*         openssl_thread_config::openssl_mutexes = nullptr;
+std::vector<std::mutex> openssl_thread_config::openssl_mutexes;
 
 unsigned long openssl_thread_config::get_thread_id()
 {
@@ -404,6 +404,7 @@ unsigned long openssl_thread_config::get_thread_id()
 
 void openssl_thread_config::locking_callback(int mode, int type, const char *file, int line)
 {
+  FC_ASSERT( size_t(type) < openssl_mutexes.size() );
   if (mode & CRYPTO_LOCK)
     openssl_mutexes[type].lock();
   else
@@ -419,7 +420,7 @@ openssl_thread_config::openssl_thread_config()
   if (CRYPTO_get_id_callback() == NULL &&
       CRYPTO_get_locking_callback() == NULL)
   {
-    openssl_mutexes = new boost::mutex[CRYPTO_num_locks()];
+    openssl_mutexes = std::vector<std::mutex>( CRYPTO_num_locks() );
     CRYPTO_set_id_callback(&get_thread_id);
     CRYPTO_set_locking_callback(&locking_callback);
   }
@@ -430,8 +431,6 @@ openssl_thread_config::~openssl_thread_config()
   {
     CRYPTO_set_id_callback(NULL);
     CRYPTO_set_locking_callback(NULL);
-    delete[] openssl_mutexes;
-    openssl_mutexes = nullptr;
   }
 }
 

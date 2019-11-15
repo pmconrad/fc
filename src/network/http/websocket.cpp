@@ -230,7 +230,7 @@ namespace fc { namespace http {
       {
          public:
             websocket_server_impl()
-            :_server_thread_id( boost::this_thread::get_id() )
+            :_server_thread_id( std::this_thread::get_id() )
             {
 
                _server.clear_access_channels( websocketpp::log::alevel::all );
@@ -354,7 +354,7 @@ namespace fc { namespace http {
             typedef std::map<connection_hdl, websocket_connection_ptr,std::owner_less<connection_hdl> > con_map;
 
             con_map                  _connections;
-            boost::thread::id        _server_thread_id;
+            std::thread::id          _server_thread_id;
             websocket_server_type    _server;
             on_connection_handler    _on_connection;
             uint32_t                 _pending_messages = 0;
@@ -368,7 +368,7 @@ namespace fc { namespace http {
       {
          public:
             websocket_tls_server_impl( const string& server_pem, const string& ssl_password )
-            :_server_thread_id( boost::this_thread::get_id() )
+            :_server_thread_id( std::this_thread::get_id() )
             {
                //if( server_pem.size() )
                {
@@ -486,7 +486,7 @@ namespace fc { namespace http {
             typedef std::map<connection_hdl, websocket_connection_ptr,std::owner_less<connection_hdl> > con_map;
 
             con_map                     _connections;
-            boost::thread::id           _server_thread_id;
+            std::thread::id             _server_thread_id;
             websocket_tls_server_type   _server;
             on_connection_handler       _on_connection;
 
@@ -519,7 +519,7 @@ namespace fc { namespace http {
       {
          public:
             generic_websocket_client_impl()
-            :_client_thread_id( boost::this_thread::get_id() )
+            :_client_thread_id( std::this_thread::get_id() )
             {
                 _client.clear_access_channels( websocketpp::log::alevel::all );
                 _client.set_message_handler( [this]( connection_hdl hdl,
@@ -601,7 +601,7 @@ namespace fc { namespace http {
                if( _error ) throw *_error;
                return _connection;
             }
-            boost::thread::id                  _client_thread_id;
+            std::thread::id                    _client_thread_id;
             websocketpp::client<T>             _client;
             websocket_connection_ptr           _connection;
             std::string                        _uri;

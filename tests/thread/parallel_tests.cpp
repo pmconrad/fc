@@ -111,21 +111,20 @@ BOOST_AUTO_TEST_CASE( do_nothing_parallel )
 BOOST_AUTO_TEST_CASE( do_something_parallel )
 {
    struct result {
-      boost::thread::id thread_id;
-      int               call_count;
+      std::thread::id thread_id;
+      int             call_count;
    };
 
    std::vector<boost::fibers::future<result>> results;
    results.reserve( 20 );
-   boost::thread_specific_ptr<int> tls;
+   thread_local int tls;
    for( size_t i = 0; i < results.capacity(); i++ )
       results.emplace_back( fc::do_parallel( [&tls] () {
-         if( !tls.get() ) { tls.reset( new int(0) ); }
-         result res = { boost::this_thread::get_id(), (*tls.get())++ };
+         result res = { std::this_thread::get_id(), tls++ };
          return res;
       } ) );
 
-   std::map<boost::thread::id,std::vector<int>> results_by_thread;
+   std::map<std::thread::id,std::vector<int>> results_by_thread;
    for( auto& res : results )
    {
       result r = res.get();
@@ -206,7 +205,7 @@ BOOST_AUTO_TEST_CASE( sign_verify_parallel )
 
 BOOST_AUTO_TEST_CASE( serial_valve )
 {
-   boost::atomic<uint32_t> counter(0);
+   std::atomic<uint32_t> counter(0);
    fc::serial_valve valve;
 
    { // Simple test, f2 finishes before f1

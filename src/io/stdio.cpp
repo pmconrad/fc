@@ -1,6 +1,3 @@
-#include <boost/thread/mutex.hpp>
-#include <boost/thread/thread.hpp>
-
 #include <fc/exception/exception.hpp>
 #include <fc/io/sstream.hpp>
 #include <fc/io/stdio.hpp>
@@ -11,13 +8,14 @@
 #include <iostream>
 #include <mutex>
 #include <string>
+#include <thread>
 
 namespace fc {
   
   class cin_buffer {
   public:
     cin_buffer() : eof(false), write_pos(0), read_pos(0) {
-       cinthread = boost::thread( [this] () {
+       cinthread = std::thread( [this] () {
           set_thread_name("cin");
           read();
        } );
@@ -102,7 +100,7 @@ namespace fc {
     char     buf[0xfffff+1]; // 1 mb buffer
     uint64_t read_pos;
 
-    boost::thread     cinthread;
+    std::thread cinthread;
   };
 
   cin_buffer& get_cin_buffer() {

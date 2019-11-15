@@ -38,7 +38,7 @@ namespace fc {
     *  @return a future for the result of f()
     */
    template<typename Functor>
-   auto async( Functor&& f, boost::thread::id dest = boost::this_thread::get_id(),
+   auto async( Functor&& f, std::thread::id dest = std::this_thread::get_id(),
                const std::string& name = std::string() )
          -> boost::fibers::future<decltype(f())> {
       typedef decltype(f()) Result;
@@ -52,7 +52,7 @@ namespace fc {
          });
       boost::fibers::future<Result> r = task.get_future();
       boost::fibers::fiber fib( std::move( task ) );
-      if( dest != boost::this_thread::get_id() )
+      if( dest != std::this_thread::get_id() )
          target_thread_scheduler_base::move_fiber( fib, dest );
       fib.detach();
       return r;
@@ -63,7 +63,7 @@ namespace fc {
     */
    template<typename Functor, typename Clock, typename Duration>
    auto schedule( Functor&& f, std::chrono::time_point< Clock, Duration > const& t,
-                  boost::thread::id dest = boost::this_thread::get_id(), const std::string name = std::string() )
+                  std::thread::id dest = std::this_thread::get_id(), const std::string name = std::string() )
          -> boost::fibers::future<decltype(f())> {
       return async( [f=std::move(f), t] () {
          boost::this_fiber::sleep_until( t );

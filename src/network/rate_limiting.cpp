@@ -317,7 +317,7 @@ namespace fc
         if( !_process_pending_reads_loop_complete.valid()
                || _process_pending_reads_loop_complete.wait_for(std::chrono::seconds(0)) == boost::fibers::future_status::ready )
            _process_pending_reads_loop_complete = async( [this](){ process_pending_reads(); },
-                                                         boost::this_thread::get_id(), "process_pending_reads" );
+                                                         std::this_thread::get_id(), "process_pending_reads" );
         else
            _new_read_operation_available.notify_all();
         lock.unlock();
@@ -369,7 +369,7 @@ namespace fc
         if( !_process_pending_writes_loop_complete.valid()
                || _process_pending_writes_loop_complete.wait_for(std::chrono::seconds(0)) == boost::fibers::future_status::ready )
           _process_pending_writes_loop_complete = async( [this](){ process_pending_writes(); },
-                                                         boost::this_thread::get_id(), "process_pending_writes");
+                                                         std::this_thread::get_id(), "process_pending_writes");
         else
           _new_write_operation_available.notify_all();
         lock.unlock();
