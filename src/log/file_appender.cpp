@@ -24,7 +24,7 @@ namespace fc {
          future<void>               _deletion_task;
          boost::atomic<int64_t>     _current_file_number;
          const int64_t              _interval_seconds;
-         time_point                 _next_file_time;
+         time_point                 _next_file_time = time_point::min();
 
       public:
          impl( const config& c) : cfg( c ), _interval_seconds( cfg.rotation_interval.to_seconds() )
