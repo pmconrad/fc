@@ -109,30 +109,33 @@ namespace fc {
              fc::time_point_sec start_time = time_point_sec( (uint32_t)(current_file * _interval_seconds) );
              fc::time_point limit_time = time_point::now() - cfg.rotation_limit;
              fc::path link_filename = cfg.filename;
-             string link_filename_string = link_filename.filename().string();
-             directory_iterator itr(link_filename.parent_path());
-             string timestamp_string = start_time.to_non_delimited_iso_string();
-             for( ; itr != directory_iterator(); itr++ )
+             if( fc::exists(link_filename.parent_path()) )
              {
-                 try
-                 {
-                     string current_filename = itr->filename().string();
-                     if( current_filename.compare(0, link_filename_string.size(), link_filename_string) != 0
+                string link_filename_string = link_filename.filename().string();
+                directory_iterator itr(link_filename.parent_path());
+                string timestamp_string = start_time.to_non_delimited_iso_string();
+                for( ; itr != directory_iterator(); itr++ )
+                {
+                   try
+                   {
+                      string current_filename = itr->filename().string();
+                      if( current_filename.compare(0, link_filename_string.size(), link_filename_string) != 0
                             || current_filename.size() <= link_filename_string.size() + 1 )
-                        continue;
-                     string current_timestamp_str = current_filename.substr(link_filename_string.size() + 1,
-                                                                            timestamp_string.size());
-                     fc::time_point_sec current_timestamp = fc::time_point_sec::from_iso_string( current_timestamp_str );
-                     if( current_timestamp < start_time
+                         continue;
+                      string current_timestamp_str = current_filename.substr(link_filename_string.size() + 1,
+                                                                             timestamp_string.size());
+                      fc::time_point_sec current_timestamp = fc::time_point_sec::from_iso_string( current_timestamp_str );
+                      if( current_timestamp < start_time
                             && ( current_timestamp < limit_time || file_size( current_filename ) <= 0 ) )
-                     {
-                        remove_all( *itr );
-                        continue;
-                     }
-                 }
-                 catch( ... )
-                 {
-                 }
+                      {
+                         remove_all( *itr );
+                         continue;
+                      }
+                   }
+                   catch( ... )
+                   {
+                   }
+                }
              }
              lock.lock();
              const auto then = (start_time + _interval_seconds).sec_since_epoch();
